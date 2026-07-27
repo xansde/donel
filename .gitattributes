@@ -1,0 +1,17 @@
+# Fim de linha fixado em LF, no index E na copia de trabalho.
+#
+# Sem isto, `core.autocrlf=true` (default de muita instalacao Windows) faz o git
+# considerar TODO arquivo como modificado sempre que algo mexe no mtime — foi o
+# que aconteceu ao espelhar este repo a partir do repo de trabalho: 154 arquivos
+# apareciam como " M" no `git status` com `git diff` vazio, o que torna a
+# revisao antes de promover inutil.
+* text=auto eol=lf
+
+# Binarios: nunca converter.
+*.png binary
+*.jpg binary
+*.ico binary
+*.node binary
+*.pdb binary
+*.exe binary
+*.dll binary
