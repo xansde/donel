@@ -1,0 +1,180 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--panel-padding);
+  background: var(--bg-panel);
+  border-right: var(--hairline);
+  overflow-y: auto;
+}
+
+.sectionTitle {
+  font-size: var(--text-caption-size);
+  font-weight: var(--weight-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 var(--space-1);
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+  margin: 0 var(--space-half);
+}
+
+.projectGroup {
+  margin-bottom: var(--space-1);
+}
+
+.projectRootToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-half);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: var(--space-half);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.projectRootToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.projectRoot {
+  font-size: var(--text-caption-size);
+}
+
+.projectRow,
+.sessionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--list-row-height-min);
+  padding: 0 var(--space-half);
+  border-radius: var(--radius-sm);
+}
+
+.projectRow:hover,
+.sessionRow:hover {
+  background: var(--bg-raised);
+}
+
+.sessionRowActive {
+  background: var(--bg-raised);
+}
+
+.missing {
+  opacity: 0.5;
+}
+
+.favoriteButton,
+.pinButton,
+.historyButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.historyButton:hover {
+  color: var(--text-primary);
+}
+
+.favoriteButton[aria-pressed='true'] {
+  color: var(--donel-accent, var(--state-waiting));
+}
+
+.pinButton[aria-pressed='true'] {
+  color: var(--accent);
+}
+
+.favoriteButton:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.favoriteButton:focus-visible,
+.pinButton:focus-visible,
+.historyButton:focus-visible,
+.projectOpenButton:focus-visible,
+.sessionOpenButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.projectOpenButton,
+.sessionOpenButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-body-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.projectOpenButton {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.projectName {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: var(--text-body-size);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.removeButton {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/*
+ * T407 — o nome da sessão saiu de um `<span>` inline para o EditableLabel
+ * (renomear pela linha, CA-3), então a truncagem passou a ter classe própria
+ * em vez de depender do seletor posicional `span:first-of-type` — que, com o
+ * label virando `<input>` em modo edição, deixaria de casar.
+ */
+.sessionName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sessionProject {
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+  margin-left: auto;
+  flex-shrink: 0;
+}

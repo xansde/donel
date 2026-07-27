@@ -1,0 +1,51 @@
+{
+  "name": "donel-dev",
+  "version": "0.2.0",
+  "description": "Donel Dev — app desktop para operar várias sessões do Claude Code em paralelo.",
+  "author": "Alexandre Lentz",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xansde/donel.git"
+  },
+  "main": "out/main/index.js",
+  "workspaces": [
+    "design-system"
+  ],
+  "scripts": {
+    "prebuild": "npm run build -w @donel-dev/design-system",
+    "postinstall": "patch-package && electron-rebuild -f -w node-pty",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "preview": "electron-vite preview",
+    "test": "vitest run",
+    "test:smoke": "playwright test -c tests/smoke/playwright.config.ts",
+    "test:smoke:dev": "playwright test -c tests/smoke-dev/playwright.config.ts",
+    "dist": "npm run build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@donel-dev/design-system": "0.1.0",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "node-pty": "1.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "4.2.0",
+    "@playwright/test": "1.61.1",
+    "@types/node": "22.10.5",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.3.4",
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "patch-package": "^8.0.1",
+    "typescript": "5.7.3",
+    "vite": "5.4.20",
+    "vitest": "2.1.9"
+  }
+}

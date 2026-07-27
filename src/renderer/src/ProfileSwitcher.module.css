@@ -1,0 +1,271 @@
+.genericBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-panel);
+  border: var(--hairline);
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: var(--text-body-size);
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.genericBadge:hover {
+  background: var(--bg-raised);
+}
+
+.genericBadge:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 320px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  border: var(--hairline);
+}
+
+/* T206 — cabeçalho da linha: controle de ativação (AccountBadge/.plainRow) +
+   chevron de expansão, lado a lado. O chevron é SEMPRE irmão do controle de
+   ativação aqui, nunca filho — botão dentro de botão é HTML inválido e
+   quebraria o `stopPropagation` do CA-2b. */
+.rowHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.plainRow {
+  display: flex;
+  align-items: center;
+  /* FIX (feedback E2E rodada 4, item 8) — antes `justify-content:
+     space-between` com só 2 filhos (nome, check opcional); T206 moveu o
+     headroom pro bloco `.quotaDetail` abaixo da linha (a barra de 5h +
+     resumo da semana), então este botão volta a só ter nome + check. */
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+  padding: 4px 2px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-body-size);
+  cursor: pointer;
+  text-align: left;
+}
+
+/* T206/CA-2b — chevron dedicado de expansão: nunca ativa a conta (o
+   `onClick` já faz stopPropagation/preventDefault em ProfileSwitcher.tsx);
+   visualmente discreto (ghost), só destaca no hover/foco. */
+.expandButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.expandButton:hover {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.expandButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.chevronExpanded {
+  transform: rotate(180deg);
+}
+
+/* T206/CA-2 — bloco de cota da linha: 5h primária (barra + texto) + semana
+   em texto compacto (sem barra própria) + fable (só quando expandido). */
+.quotaDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 2px;
+}
+
+.fiveHourRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.barTrack {
+  flex-shrink: 0;
+  width: 64px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+/* Compostas com `.tier-*` (mesmas classes reaproveitadas do `HeadroomSlot` —
+   ver bloco `.tier-high/.tier-mid/.tier-low/.tier-none` mais abaixo, que
+   define `color` pro texto): aqui a mesma classe de tier vira
+   `background-color` da barra, em vez de duplicar a lógica de cor. */
+.barFill.tier-high {
+  background: var(--headroom-high);
+}
+
+.barFill.tier-mid {
+  background: var(--headroom-mid);
+}
+
+.barFill.tier-low {
+  background: var(--headroom-low);
+}
+
+.barFill.tier-none {
+  background: var(--headroom-none);
+}
+
+.fiveHourLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  color: var(--text-primary);
+}
+
+.sevenDayText,
+.fableText {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  padding-left: calc(64px + var(--space-1));
+}
+
+.quotaLoading {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+.refreshButton {
+  align-self: flex-start;
+}
+
+.plainRow:hover {
+  color: var(--accent);
+}
+
+.plainName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* FIX (feedback E2E rodada 4, item 8) — slot de headroom pro branch "nome
+   genérico" (perfis fora da convenção "Tecnologia Claude {n}", incluindo
+   SEMPRE o Principal) — mesmas cores por tier que o AccountBadge do
+   design-system usa (design-system.md §2: verde/dourado/vermelho/cinza),
+   reaproveitando os tokens `--headroom-*` já globais (mesmos usados por
+   `.doctorWarning`/`.doctorOk` acima). */
+.headroomText {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  font-weight: var(--weight-semibold);
+}
+
+.tier-high {
+  color: var(--headroom-high);
+}
+
+.tier-mid {
+  color: var(--headroom-mid);
+}
+
+.tier-low {
+  color: var(--headroom-low);
+}
+
+.tier-none {
+  color: var(--headroom-none);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-regular);
+}
+
+.doctorWarning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-half) var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--headroom-low);
+  font-size: var(--text-caption-size);
+}
+
+/* T207/CA-7 — o texto "Junctions com problema" virou ícone + tooltip nativo
+   (`title`); perfil saudável não renderiza NENHUM texto de status (branch
+   `.doctorOk` removido — lista enxuta). */
+.doctorWarningIcon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--headroom-low);
+  cursor: help;
+}
+
+.createForm {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: var(--hairline);
+}
+
+.createForm > *:first-child {
+  flex: 1;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+}
+
+.hint code {
+  font-family: var(--font-mono);
+}

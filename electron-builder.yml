@@ -1,0 +1,83 @@
+# T016 — Empacotamento (electron-builder, NSIS, Windows).
+#
+# appId casa com `app.setAppUserModelId('com.seazone.doneldev')` em
+# src/main/index.ts — precisam ficar em sincronia (risco do plan.md: notificação
+# do Windows atribuída a "Electron" em vez de "Donel Dev" se divergirem).
+appId: com.seazone.doneldev
+productName: Donel Dev
+copyright: Copyright (c) 2026 Seazone
+
+directories:
+  output: release
+
+# Só exclusões — o `**/*` implícito do electron-builder continua valendo, e a
+# árvore de dependências de produção (package.json "dependencies") continua
+# sendo resolvida automaticamente a partir de node_modules (mesmo padrão que
+# o boilerplate oficial do electron-vite usa). Sem isso, specs/design/tests
+# (não usados em runtime) inflariam o instalador à toa.
+files:
+  - "!specs/**"
+  # docs/ e scripts/ existem para PUBLICAR o app, não para rodá-lo. O
+  # `scripts/publicar.local.json` (gitignored) guarda o caminho da pasta
+  # compartilhada da máquina de quem publica — o electron-builder empacota a
+  # partir do disco, não do git, então sem esta exclusão esse caminho local
+  # viajaria dentro do instalador de todo colega.
+  - "!docs/**"
+  - "!scripts/**"
+  - "!design/**"
+  - "!design-system/**"
+  - "!src/**"
+  - "!tests/**"
+  - "!patches/**"
+  - "!coverage/**"
+  - "!test-results/**"
+  - "!release/**"
+  - "!*.md"
+  - "!electron.vite.config.*"
+  - "!electron-builder.yml"
+  - "!vitest.config.ts"
+  - "!tsconfig*.json"
+  - "!.gitignore"
+  - "!package-lock.json"
+  # `@donel-dev/design-system` só é consumido pelo renderer (Vite já
+  # inlinou o dist dele em out/renderer/assets/*.js no build) e por um
+  # `import type` no main (apagado em tempo de compilação — sem require em
+  # runtime, confirmado via grep). O workspace resolve
+  # node_modules/@donel-dev/design-system como symlink pro pacote inteiro
+  # (com .ds-sync/.design-sync/storybook-static/node_modules PRÓPRIOS, ~50MB
+  # de cache de ferramentas de design) — nada disso precisa ir pro instalador.
+  - "!node_modules/@donel-dev/design-system/**"
+
+# node-pty (T004) é addon nativo (.node, compilado contra a ABI do Electron
+# via electron-rebuild no postinstall) — precisa existir em disco de verdade
+# pra dlopen funcionar; dentro do app.asar ele falharia ao carregar. Unpack
+# do pacote inteiro (não só o .node) porque windowsPtyAgent.js dá fork() num
+# helper .js do próprio pacote (conpty_console_list_agent) — mais seguro
+# manter tudo junto e fora do asar do que cherry-picar arquivo por arquivo.
+asarUnpack:
+  - "**/node_modules/node-pty/**/*"
+
+# Sem publish automático — instalador fica só em release/ (gitignored),
+# nunca sobe pra um GitHub Release sozinho.
+publish: null
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # Nenhum ícone em design/ neste ciclo (confirmado: só há HTML/CSS de
+  # referência do brief, nenhum .ico/.png de ícone de app) — cai no ícone
+  # padrão do Electron. Trocar por um .ico real (build/icon.ico) assim que
+  # o design entregar um; documentado também no README.
+
+nsis:
+  # Instalação per-user (sem admin) — pedido explícito do T016. `perMachine:
+  # false` já é o default do electron-builder, mas fica explícito aqui.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Donel Dev
+  artifactName: ${productName}-Setup-${version}.${ext}

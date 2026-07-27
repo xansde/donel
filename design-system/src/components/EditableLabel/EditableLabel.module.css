@@ -1,0 +1,28 @@
+/*
+ * T407 — o label herda a tipografia de quem o hospeda (aba em mono, linha da
+ * sidebar em sans), então NADA de font-family/size aqui: só o comportamento de
+ * truncagem e o input de edição. `min-width: 0` permite ao flex encolher o
+ * span, condição para o ellipsis funcionar.
+ */
+.label {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input {
+  min-width: 0;
+  padding: 0 2px;
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+}
+
+.input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

@@ -1,0 +1,71 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-panel);
+  border: var(--hairline);
+  border-radius: 999px;
+  font-family: var(--font-ui);
+  font-size: var(--text-body-size);
+  line-height: 1;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.interactive {
+  cursor: pointer;
+  transition: background var(--duration-micro) var(--ease-standard);
+}
+
+.interactive:hover {
+  background: var(--bg-raised);
+}
+
+.interactive:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.name {
+  color: var(--text-primary);
+}
+
+.separator {
+  color: var(--text-muted);
+}
+
+.headroom {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  font-weight: var(--weight-semibold);
+}
+
+.tier-high {
+  color: var(--headroom-high);
+}
+
+.tier-mid {
+  color: var(--headroom-mid);
+}
+
+.tier-low {
+  color: var(--headroom-low);
+}
+
+.tier-none {
+  color: var(--headroom-none);
+  font-family: var(--font-ui);
+  font-weight: var(--weight-regular);
+}
+
+.icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive {
+    transition: none;
+  }
+}

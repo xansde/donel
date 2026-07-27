@@ -1,0 +1,2 @@
+{"parentUuid":null,"isSidechain":false,"promptId":"p5","type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":[{"type":"tool_reference","tool_name":"WebFetch"}]}]},"uuid":"t1","timestamp":"2026-01-01T14:00:00.000Z","sessionId":"s5"}
+{"parentUuid":"t1","isSidechain":false,"promptId":"p5","type":"user","message":{"role":"user","content":"Now write a placeholder haiku about deployment pipelines."},"uuid":"t2","timestamp":"2026-01-01T14:00:05.000Z","sessionId":"s5"}

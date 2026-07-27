@@ -1,0 +1,115 @@
+.root {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  color: var(--text-muted);
+  outline: none;
+  border-radius: var(--radius-sm);
+}
+
+.root:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.barTrack {
+  width: 120px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.compact .barTrack {
+  width: 64px;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--duration-panel) var(--ease-standard);
+}
+
+.fill-ok {
+  background: var(--zone-ok);
+}
+
+.fill-warn {
+  background: var(--zone-warn);
+}
+
+.fill-over {
+  background: var(--zone-over);
+}
+
+.label {
+  white-space: nowrap;
+}
+
+.compact .label {
+  font-size: var(--text-caption-size);
+}
+
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-half);
+  min-width: max-content;
+  padding: var(--space-1);
+  background: var(--bg-raised);
+  border: var(--hairline);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-modal);
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  color: var(--text-primary);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition:
+    opacity var(--duration-micro) var(--ease-standard),
+    transform var(--duration-micro) var(--ease-standard);
+}
+
+.root:hover .tooltip,
+.root:focus-within .tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.handoffButton {
+  align-self: flex-start;
+  background: var(--accent);
+  color: var(--bg-app);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.handoffButton:hover {
+  filter: brightness(1.08);
+}
+
+.handoffButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barFill,
+  .tooltip {
+    transition: none;
+  }
+}

@@ -1,0 +1,21 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--statusbar-height);
+  padding: 0 var(--panel-padding);
+  background: var(--bg-panel);
+  border-top: var(--hairline);
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.separator {
+  color: var(--border);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}

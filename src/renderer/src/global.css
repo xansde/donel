@@ -1,0 +1,38 @@
+/**
+ * Reset global do shell (feedback E2E rodada 2, item "app inteiro tem
+ * scrollbar vertical") — `index.html` não tinha NENHUM reset antes disso:
+ * `body` nasce com a margem default do UA (~8px) e `html`/`body`/`#root`
+ * sem `height: 100%` herdado. `.shell` (App.module.css) já usava
+ * `height: 100vh`, mas 100vh + 8px de margem no body estoura o viewport em
+ * ~16px (topo+baixo) — o suficiente pra o Chromium desenhar uma scrollbar
+ * vertical na JANELA mesmo com todo o conteúdo visível. Corrige a causa raiz
+ * (margem/altura do documento), não só esconde a scrollbar com
+ * `overflow: hidden` por cima do sintoma — os dois entram juntos: o reset
+ * remove a margem/garante 100% de altura encadeada até `#root`, e
+ * `overflow: hidden` no body é a garantia de que NENHUM overflow de 1px
+ * (arredondamento de layout, etc.) volta a desenhar a barra. Scroll
+ * continua existindo, só que sempre INTERNO (sidebar, painel direito,
+ * buffer do terminal via xterm/scrollback) — nunca no documento.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
+}

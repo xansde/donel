@@ -1,0 +1,3 @@
+{"type":"custom-title","customTitle":"Empty run","sessionId":"s3"}
+{"parentUuid":null,"isSidechain":false,"attachment":{"type":"hook_non_blocking_error","hookName":"SessionStart:startup","hookEvent":"SessionStart","stderr":"","stdout":"","exitCode":0,"command":"noop","durationMs":10},"type":"attachment","uuid":"c1","timestamp":"2026-01-01T12:00:00.000Z","sessionId":"s3"}
+{"parentUuid":"c1","isSidechain":false,"type":"system","subtype":"info","content":"Session initialized","uuid":"c2","timestamp":"2026-01-01T12:00:01.000Z","sessionId":"s3"}

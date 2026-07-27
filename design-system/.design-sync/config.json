@@ -1,0 +1,20 @@
+{
+  "projectId": "f6d68514-32ea-4734-9d90-1d716533bf62",
+  "shape": "storybook",
+  "pkg": "@donel-dev/design-system",
+  "globalName": "DonelDesignSystem",
+  "entry": "./dist/donel-design-system.js",
+  "cssEntry": "./dist/style.css",
+  "storybookStatic": ".design-sync/sb-reference",
+  "storybookConfigDir": ".storybook",
+  "buildCmd": "npm run build",
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Modal": { "cardMode": "single", "primaryStory": "CloseSessionConfirmation" },
+    "Toast": { "cardMode": "single", "primaryStory": "PostItSaved" },
+    "PhaseChip": { "cardMode": "column" },
+    "PostItCard": { "cardMode": "column" },
+    "TerminalTab": { "cardMode": "column" },
+    "StatusBar": { "cardMode": "column" }
+  }
+}

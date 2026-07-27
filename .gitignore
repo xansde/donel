@@ -1,0 +1,19 @@
+node_modules/
+dist/
+out/
+release/
+.vite/
+*.log
+.env
+.env.*
+test-results/
+
+# Sondas exploratórias (spikes de investigação — ex.: B11, TTFB do CLI,
+# junctions de perfil). São one-off, ficam locais de propósito: não são
+# suíte de teste nem evidência versionada.
+probe-*
+tests/probe/
+
+# Destino local da publicacao (caminho da pasta compartilhada — varia por
+# maquina, gravado no primeiro `npm run publicar`).
+scripts/publicar.local.json

@@ -1,0 +1,13 @@
+{
+  "providers": [
+    {
+      "provider": "claude",
+      "windows": [
+        { "id": "five_hour", "kind": "session", "percentRemaining": 97, "resetsAt": "2026-07-24T14:00:00.000Z" },
+        { "id": "seven_day", "kind": "weekly", "percentRemaining": 100, "resetsAt": "2026-07-31T04:00:00.000Z" },
+        { "id": "model:fable", "kind": "model", "percentRemaining": 55 }
+      ],
+      "state": { "status": "fresh", "stale": false }
+    }
+  ]
+}

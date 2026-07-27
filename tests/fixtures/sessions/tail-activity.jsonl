@@ -1,0 +1,4 @@
+{"type":"custom-title","customTitle":"Tail check","sessionId":"s9"}
+{"parentUuid":null,"isSidechain":false,"promptId":"p9","type":"user","message":{"role":"user","content":"Placeholder first message for tail activity fixture."},"uuid":"tt1","timestamp":"2026-01-02T09:00:00.000Z","sessionId":"s9"}
+{"parentUuid":"tt1","isSidechain":false,"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Placeholder reply."}]},"uuid":"tt2","timestamp":"2026-01-02T09:00:03.000Z","sessionId":"s9"}
+{"parentUuid":"tt2","isSidechain":false,"type":"user","message":{"role":"user","content":"Placeholder follow-up message, this is the last activity."},"uuid":"tt3","timestamp":"2026-01-02T09:05:42.000Z","sessionId":"s9"}

@@ -1,0 +1,71 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  line-height: 1;
+}
+
+.dot {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.working {
+  background: var(--state-working);
+  animation: state-dot-pulse 2000ms ease-in-out infinite;
+}
+
+.waiting {
+  background: var(--state-waiting);
+}
+
+.permission {
+  background: var(--state-permission);
+  animation: state-dot-pulse 1000ms ease-in-out infinite;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--state-permission) 30%, transparent);
+}
+
+.done {
+  background: var(--state-done);
+}
+
+.error {
+  background: var(--state-error);
+}
+
+/* Anel fino de smart zone (>70% de uso) — pseudo-elemento independente do
+   halo de `permission`, funciona sobre qualquer fundo. */
+.ringed::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ring-color);
+  pointer-events: none;
+}
+
+.label {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+@keyframes state-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working,
+  .permission {
+    animation: none;
+  }
+}

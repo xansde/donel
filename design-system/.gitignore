@@ -1,0 +1,15 @@
+node_modules/
+dist/
+storybook-static/
+*.log
+.DS_Store
+
+# design-sync (claude.ai/design) — build artifacts, staged converter scripts,
+# and verification working state; the durable set (config.json, NOTES.md,
+# conventions.md, previews/, overrides/) is NOT covered by these rules.
+.design-sync/sb-reference/
+.design-sync/learnings/
+.design-sync/.cache/
+.design-sync/node_modules
+.ds-sync/
+ds-bundle/

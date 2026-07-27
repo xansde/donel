@@ -1,0 +1,63 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--overlay-modal);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 480px;
+  margin: var(--space-3);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-modal);
+  outline: none;
+  animation: modal-in var(--duration-panel) var(--ease-standard);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-heading-size);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.body {
+  font-family: var(--font-ui);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line-height);
+  color: var(--text-primary);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: var(--space-1);
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog {
+    animation: none;
+  }
+}

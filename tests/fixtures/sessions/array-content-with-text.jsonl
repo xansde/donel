@@ -1,0 +1,1 @@
+{"parentUuid":null,"isSidechain":false,"promptId":"p6","type":"user","message":{"role":"user","content":[{"type":"text","text":"Review the attached placeholder screenshot and list issues."},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"placeholder"}}]},"uuid":"a1","timestamp":"2026-01-01T15:00:00.000Z","sessionId":"s6"}

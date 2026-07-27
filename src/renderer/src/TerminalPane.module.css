@@ -1,0 +1,83 @@
+.wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.container {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-1);
+}
+
+/* xterm.js cria seu próprio DOM interno; só garantimos que ocupe o espaço. */
+.container :global(.terminal.xterm) {
+  height: 100%;
+}
+
+/*
+ * T005 — estados sobre o corpo do terminal (ui-spec §2 "Estados da vista"):
+ * "sessão encerrada" (FR-006) e "claude não encontrado" (CA-5). Cobre o
+ * terminal inteiro para deixar claro que não há sessão viva por trás.
+ */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  background: rgba(14, 17, 22, 0.92);
+}
+
+.banner {
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: var(--hairline);
+  border-left: 3px solid var(--state-permission);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  text-align: left;
+}
+
+.bannerTitle {
+  margin: 0;
+  font-size: var(--text-heading-size);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.bannerText {
+  margin: 0;
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line-height);
+  color: var(--text-primary);
+}
+
+.bannerPath,
+.bannerText code {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  color: var(--text-primary);
+  background: var(--bg-panel);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.bannerHint {
+  margin: 0;
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+.overlayActions {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}

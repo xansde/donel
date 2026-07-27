@@ -1,0 +1,113 @@
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  height: var(--control-height);
+  padding: 0 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-body-size);
+  cursor: pointer;
+  transition: border-color var(--duration-micro) var(--ease-standard);
+}
+
+.trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.triggerValue {
+  color: var(--text-primary);
+}
+
+.triggerPlaceholder {
+  color: var(--text-muted);
+}
+
+.listbox {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-raised);
+  border: var(--hairline);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-modal);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 8px 10px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.option:hover {
+  background: var(--bg-panel);
+}
+
+.option:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.optionSelected {
+  background: var(--bg-panel);
+}
+
+.optionLabel {
+  font-family: var(--font-ui);
+  font-size: var(--text-body-size);
+  color: var(--text-primary);
+}
+
+.optionDescription {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger {
+    transition: none;
+  }
+}

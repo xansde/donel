@@ -1,0 +1,153 @@
+.shell {
+  display: grid;
+  grid-template-rows: auto 1fr var(--statusbar-height);
+  height: 100vh;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-body-size);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+  padding: 0 var(--space-2);
+  background: var(--bg-panel);
+  border-bottom: var(--hairline);
+  -webkit-app-region: drag;
+}
+
+.titlebar > * {
+  -webkit-app-region: no-drag;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-half);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  margin-right: auto;
+}
+
+/* T015 — botão de Preferências (gear icon) na titlebar, entre o
+   ProfileSwitcher e o "＋ Nova sessão" — mesma linguagem visual de
+   .historyButton em ProjectSidebar.module.css (ícone só, sem fundo). */
+.preferencesButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.preferencesButton:hover {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+
+.preferencesButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr var(--right-panel-width);
+  min-height: 0;
+}
+
+/* FIX (feedback E2E rodada 3, "painel lateral 'Lançar sessão' fixo rouba
+   espaço") — painel do Launcher fechado por default (App.tsx `launcherOpen`):
+   sem a 3ª coluna, o `.center` (terminal, 1fr) ocupa o espaço sozinho. */
+.bodyPanelClosed {
+  grid-template-columns: var(--sidebar-width) 1fr;
+}
+
+.center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tabBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 36px;
+  padding: 0 var(--space-1);
+  border-bottom: var(--hairline);
+  overflow-x: auto;
+}
+
+.terminal {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  margin: var(--panel-padding);
+  border: var(--hairline);
+  border-radius: var(--radius-md);
+  background: #0e1116;
+  overflow: hidden;
+}
+
+/* Todas as abas ficam montadas (App.tsx) pra o PTY sobreviver à troca de
+   aba — só a ativa é visível; T010 assume o ciclo de vida completo. */
+.terminalPane {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  min-width: 0;
+}
+
+.terminalPaneHidden {
+  display: none;
+}
+
+/* FIX (decisão A, 2026-07-23) — estado "zero abas abertas" (ui-spec §2 "sem
+   sessões abertas"): agora tanto o estado INICIAL do app (INITIAL_TABS
+   vazio, App.tsx) quanto "fechou a última aba" (T010) caem aqui. Versão
+   mínima do estado vazio: os atalhos completos (retomar recente, rotinas)
+   chegam com T013/rotinas — fora do escopo do ciclo de vida de abas. */
+.emptyState {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-body-size);
+  text-align: center;
+}
+
+.emptyStateTitle {
+  color: var(--text-primary);
+  font-size: var(--text-heading-size);
+  font-weight: var(--weight-semibold);
+}
+
+.emptyStateHint {
+  color: var(--text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.rightPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--panel-padding);
+  background: var(--bg-panel);
+  border-left: var(--hairline);
+  overflow-y: auto;
+}
+

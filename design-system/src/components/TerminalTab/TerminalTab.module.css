@@ -1,0 +1,87 @@
+.tab {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 4px 0 10px;
+  gap: 8px;
+  background: transparent;
+  border-top: 2px solid transparent;
+  border-right: var(--hairline);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.active {
+  background: var(--bg-raised);
+  border-top-color: var(--accent);
+}
+
+.body {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  min-width: 0; /* deixa o nome encolher em vez de esticar a aba (T407) */
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.body:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.shellIcon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/*
+ * T407 — `white-space: nowrap` sozinho (como estava) não trunca: o nome
+ * transbordava. Com o limite de 60 chars do C5 isso deixou de ser cosmético —
+ * uma aba de 60 caracteres empurraria as outras fora da barra. `max-width` +
+ * `overflow: hidden` + `text-overflow: ellipsis`; o nome inteiro fica no
+ * `title` da aba.
+ */
+.name {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  color: var(--text-primary);
+  max-width: 22ch;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--bg-panel);
+  color: var(--text-primary);
+}
+
+.close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

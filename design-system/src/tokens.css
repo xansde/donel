@@ -1,0 +1,121 @@
+/**
+ * Donel Dev — design tokens
+ *
+ * Fonte de verdade: design/design-system.md, seções 2 (Cor), 3 (Tipografia),
+ * 4 (Grid/espaçamento/densidade) e 7 (Motion). Tema único, dark-first — não
+ * há um bloco `light` porque o produto não tem tema claro no lançamento
+ * (design-system.md §1.4).
+ *
+ * Regra do pacote: componentes NUNCA hardcodam hex — sempre `var(--token)`.
+ */
+
+:root {
+  /* === Superfícies e texto (design-system.md §2, "Superfícies e texto") === */
+  --bg-app: #0e1116;
+  --bg-panel: #151a21;
+  --bg-raised: #1c232c;
+  --border: #28303b;
+  --text-primary: #d7dde5;
+  --text-muted: #828d9c;
+  --accent: #4c9cf0;
+
+  /* === Estados do semáforo de sessões (§2, "Estados do semáforo") === */
+  --state-working: #4c9cf0;
+  --state-waiting: #e8b44c;
+  --state-permission: #f0684c;
+  --state-done: #5e6873;
+  --state-error: #b678f0;
+
+  /* === Smart zone — medidor de contexto, ~400k tokens (§2, "Smart zone") === */
+  --zone-ok: #3dce8f;
+  --zone-warn: #e8b44c;
+  --zone-over: #f0684c;
+  --smart-zone-max-tokens: 400000;
+
+  /* === Headroom de conta (§2, "Regras de cor") === */
+  /* Reaproveita as cores já definidas — verde >40%, dourado 15–40%,
+     vermelho <15%, cinza "—" sem leitura — em vez de inventar hexes novos. */
+  --headroom-high: var(--zone-ok);
+  --headroom-mid: var(--state-waiting);
+  --headroom-low: var(--state-permission);
+  --headroom-none: var(--text-muted);
+
+  /* === Cor de identidade do Donel (§10) === */
+  /* Acento dourado de vela — cartas/post-its do Tomo do Donel. Nunca roxo
+     (§10 e §2 reservam roxo exclusivamente a state-error). */
+  --donel-accent: #e8b44c;
+  --postit-bg: #3a3526;
+
+  /* === Chips de fase da Esteira (§6, "Chip de fase") === */
+  /* O design-system.md não fixa os hex das 5 fases ("interpretação, defina
+     uma paleta harmônica"). Paleta escolhida: 5 tons dessaturados, mesma
+     luminosidade aproximada, espaçados no círculo cromático e deliberadamente
+     distintos dos hues já usados pelos estados do semáforo/smart zone
+     (accent/working ~210°, waiting/zone-warn ~40°, permission/zone-over ~9°,
+     error ~271°, zone-ok ~156°) para não competir com o vocabulário de
+     estado. Ver README.md do pacote para o racional completo. */
+  --phase-discovery: #8896b3; /* slate dessaturado */
+  --phase-plano: #9b8fd9; /* lavanda dessaturada */
+  --phase-implementar: #5fb0a8; /* teal dessaturado */
+  --phase-validar: #d9a05f; /* ocre dessaturado */
+  --phase-concluir: #7fbf83; /* verde-sálvia dessaturado */
+
+  /* === Tipografia (§3) === */
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  --text-body-size: 13px;
+  --text-body-line-height: 1.5;
+  --text-caption-size: 11px;
+  --text-heading-size: 15px;
+  --text-mono-size: 12.5px;
+
+  --weight-regular: 400;
+  --weight-semibold: 600;
+
+  /* === Espaçamento — base 8px, 4px em micro-gaps (§4) === */
+  --space-half: 4px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+
+  /* === Raio de canto (§4) === */
+  --radius-sm: 6px; /* controles, dots, post-its, chips */
+  --radius-md: 8px; /* cards, modal */
+
+  /* === Densidade / grid do shell (§4) === */
+  --list-row-height: 32px; /* linhas de lista, 30–32px — usamos o teto */
+  --list-row-height-min: 30px;
+  --control-height: 30px; /* botões, inputs, select, toggle */
+  --panel-padding: 12px;
+  --sidebar-width: 240px;
+  --right-panel-width: 260px;
+  --statusbar-height: 28px;
+  --hairline: 1px solid var(--border);
+
+  /* === Sombra — reservada ao modal (§4) === */
+  --shadow-modal: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --overlay-modal: rgba(0, 0, 0, 0.5);
+
+  /* === Motion (§7) === */
+  --duration-micro: 120ms;
+  --duration-panel: 200ms;
+  --ease-standard: cubic-bezier(0, 0, 0.2, 1); /* ease-out padrão */
+
+  /* === Foco (§9 — acessibilidade) === */
+  --focus-ring: 0 0 0 1px var(--accent);
+}
+
+/* Só três coisas se movem sem input do usuário (§7): os dois pulsos do
+   semáforo (working/permission) e o micro-gesto opcional do mascote. Quando
+   o usuário pede menos movimento, essas animações têm que parar — os
+   componentes que animam consultam esta media query individualmente, mas
+   fixamos aqui a intenção geral do token de duração. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-micro: 0ms;
+    --duration-panel: 0ms;
+  }
+}

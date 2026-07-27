@@ -1,0 +1,2 @@
+{"type":"custom-title","customTitle":"First placeholder session","sessionId":"aaaaaaaa-1111-1111-1111-111111111111"}
+{"parentUuid":null,"isSidechain":false,"type":"user","message":{"role":"user","content":"Placeholder request for the oldest session in this project fixture."},"uuid":"ia1","timestamp":"2026-01-03T08:00:00.000Z","sessionId":"aaaaaaaa-1111-1111-1111-111111111111"}

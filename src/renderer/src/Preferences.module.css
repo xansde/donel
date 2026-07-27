@@ -1,0 +1,91 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.section:last-child {
+  margin-bottom: 0;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-body-size);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.sectionHint {
+  margin: 0 0 var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+}
+
+.rootList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: var(--text-caption-size);
+}
+
+.rootRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-half);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+}
+
+.rootPath {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.removeRootButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.removeRootButton:hover {
+  color: var(--state-error, #f0684c);
+}
+
+.removeRootButton:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+.addRootRow {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.addRootInput {
+  flex: 1;
+}
