@@ -137,6 +137,18 @@ test.beforeAll(async () => {
     write(ctxPath(fase, CARD_M2), `---\ncard_id: ${CARD_M2}\n---\n\n# ctx\n`);
     write(resultPath(fase, CARD_M2), manifest(CARD_M2, fase, 'success', { summary: `${fase} ok` }));
   }
+  // O manifesto REAL da skill grava `artifact_paths` como OBJETO nomeado, não
+  // array — foi o shape que derrubou o renderer no 1º teste com card de
+  // verdade (28/07, tela preta). O `implementar` do M2 usa o formato real de
+  // propósito: o clique no nó divergente (abaixo) só passa se o painel de
+  // detalhes renderizar os paths em vez de crashar.
+  write(
+    resultPath('implementar', CARD_M2),
+    manifest(CARD_M2, 'implementar', 'success', {
+      summary: 'implementar ok',
+      artifact_paths: { spec: 'specs/demo/spec.md', plan: 'specs/demo/plan.md' },
+    }),
+  );
 
   // --- Board mockado (arquivo, nunca rede) --------------------------------
   // `facts` traz de propósito campos que o CA-12 NÃO exibe (descrição,
@@ -282,6 +294,12 @@ test('Modo Dev — Fatia 2: espelho anota a árvore, avisa a trava, marca diverg
   await expect(window.locator('[data-testid="devmode-node-divergence"]')).toBeVisible();
   await expect(window.locator('[data-testid="devmode-node-divergence-disk"]')).toContainText('done');
   await expect(window.locator('[data-testid="devmode-node-divergence-board"]')).toContainText('plano');
+  // Regressão da tela preta (28/07): com `artifact_paths` no formato objeto
+  // do manifesto real, o painel lista os paths — antes o spread de um
+  // não-iterável desmontava a árvore React inteira aqui.
+  const artifactList = window.locator('[data-testid="devmode-node-artifacts"]');
+  await expect(artifactList).toContainText('specs/demo/spec.md');
+  await expect(artifactList).toContainText('specs/demo/plan.md');
   expect(newPids(claudeBaseline)).toHaveLength(0);
 
   // === T328 — a sessão de conciliação: texto ESCRITO, nada enviado ========

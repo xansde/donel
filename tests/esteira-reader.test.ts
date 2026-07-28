@@ -71,6 +71,60 @@ describe('readPhaseArtifacts', () => {
     expect(artifacts.result).toEqual(manifest);
   });
 
+  // Bug do 1º teste com manifesto REAL (28/07): a skill da Esteira grava
+  // `artifact_paths` como OBJETO nomeado ({spec: "...", plan: "..."}), não
+  // como array — o cast cru derrubava o renderer (spread de não-iterável na
+  // tela preta). O reader normaliza os DOIS formatos para lista de paths;
+  // valores não-string são descartados, nunca lançam.
+  it('artifact_paths/documents como objeto nomeado (formato real da skill) → normalizados para lista de paths', () => {
+    const manifest = {
+      card_id: 'card-1',
+      fase: 'plano',
+      status: 'success',
+      started_at: '2026-07-27T10:00:00Z',
+      finished_at: '2026-07-27T10:30:00Z',
+      executor: 'claude',
+      model: 'opus',
+      effort: 'high',
+      outputs: {
+        summary: 'resumo',
+        artifact_paths: {
+          spec: 'specs/014/spec.md',
+          plan: 'specs/014/plan.md',
+          nested: { nao: 'string' },
+        },
+        documents: { lessons: 'docs/lessons.md' },
+        e2e_path: 'specs/014/e2e.md',
+      },
+    };
+    const io = fakeIo({
+      [CTX_PATH]: '---\ncard_id: card-1\n---\n',
+      [RESULT_PATH]: JSON.stringify(manifest),
+    });
+    const artifacts = readPhaseArtifacts(REPO, 'plano', 'card-1', io);
+
+    expect(artifacts.resultUnreadable).toBe(false);
+    expect(artifacts.result?.outputs.artifact_paths).toEqual(['specs/014/spec.md', 'specs/014/plan.md']);
+    expect(artifacts.result?.outputs.documents).toEqual(['docs/lessons.md']);
+  });
+
+  it('artifact_paths escalar (string/número — formato inventado) → vira lista vazia, nunca lança', () => {
+    const io = fakeIo({
+      [CTX_PATH]: '---\ncard_id: card-1\n---\n',
+      [RESULT_PATH]: JSON.stringify({
+        card_id: 'card-1',
+        fase: 'plano',
+        status: 'success',
+        outputs: { artifact_paths: 'specs/spec.md', documents: 42 },
+      }),
+    });
+    const artifacts = readPhaseArtifacts(REPO, 'plano', 'card-1', io);
+
+    expect(artifacts.resultUnreadable).toBe(false);
+    expect(artifacts.result?.outputs.artifact_paths).toEqual([]);
+    expect(artifacts.result?.outputs.documents).toEqual([]);
+  });
+
   it('frontmatter do ctx.md com worktree_path/branch → devolve os dois valores (D3)', () => {
     const io = fakeIo({
       [CTX_PATH]: '---\ncard_id: card-1\nbranch: feature/card-1\nworktree_path: C:\\worktrees\\card-1\n---\n\nconteudo\n',

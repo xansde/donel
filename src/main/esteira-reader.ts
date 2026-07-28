@@ -68,6 +68,41 @@ export interface PhaseArtifacts {
   readonly branch: string | null;
 }
 
+/**
+ * A skill da Esteira grava `artifact_paths` como OBJETO nomeado
+ * ({spec: "...", plan: "..."}), não como array — o tipo aqui prometia array e
+ * o cast cru chegou ao renderer, onde o spread de um não-iterável derrubou a
+ * árvore inteira (tela preta, 1º teste com manifesto real em 28/07). O reader
+ * aceita os dois formatos e entrega SEMPRE lista de paths; valor de formato
+ * desconhecido degrada para lista vazia (C4), nunca lança.
+ */
+function normalizePathList(value: unknown): readonly string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string');
+  if (typeof value === 'object') {
+    return Object.values(value).filter((entry): entry is string => typeof entry === 'string');
+  }
+  return [];
+}
+
+function normalizeManifest(parsed: EsteiraResultManifest): EsteiraResultManifest {
+  const outputs = parsed.outputs;
+  if (!outputs || typeof outputs !== 'object') return parsed;
+
+  const artifactPaths = normalizePathList(outputs.artifact_paths);
+  const documents = normalizePathList(outputs.documents);
+  if (artifactPaths === outputs.artifact_paths && documents === outputs.documents) return parsed;
+
+  return {
+    ...parsed,
+    outputs: {
+      ...outputs,
+      ...(artifactPaths !== undefined ? { artifact_paths: artifactPaths } : {}),
+      ...(documents !== undefined ? { documents } : {}),
+    },
+  };
+}
+
 function esteiraCtxPath(repoPath: string, fase: EsteiraPhase, cardId: string): string {
   return join(repoPath, '.esteira', fase, `${cardId}-ctx.md`);
 }
@@ -112,7 +147,7 @@ export function readPhaseArtifacts(repoPath: string, fase: EsteiraPhase, cardId:
   let resultUnreadable = false;
   if (resultText !== null) {
     try {
-      result = JSON.parse(resultText) as EsteiraResultManifest;
+      result = normalizeManifest(JSON.parse(resultText) as EsteiraResultManifest);
     } catch {
       resultUnreadable = true;
     }

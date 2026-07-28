@@ -1,5 +1,13 @@
 # Donel Dev — o que mudou
 
+## 0.3.1 — 28/07/2026
+
+- **Tela preta ao clicar numa fase do mapa — corrigido.** Quando o manifesto
+  de uma fase concluída listava os artefatos no formato de objeto nomeado
+  (o formato que a Esteira realmente grava), abrir o painel de detalhes do nó
+  derrubava a interface inteira. O leitor agora aceita os dois formatos e
+  degrada com elegância diante de um manifesto de formato desconhecido.
+
 ## 0.3.0 — 27/07/2026
 
 O **Modo Dev** chegou — e a primeira noite de uso real dele lapidou a tela
