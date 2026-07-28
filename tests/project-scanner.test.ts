@@ -16,6 +16,44 @@ function fakeDeps(dirs: Record<string, string[]>, markerPaths: Iterable<string> 
   };
 }
 
+// FIX ambiente genérico (28/07, teste do colega) — modo 'all': toda pasta de
+// 1º nível vira projeto, sem exigir `.git`/`CLAUDE.md` (na máquina dele as
+// pastas comuns "sumiam" sem explicação). Default segue 'markers'.
+describe("scanProjects — modo 'all'", () => {
+  it('lista toda pasta de 1º nível, com ou sem marcador', () => {
+    const root = 'C:\\roots\\generico';
+    const deps = fakeDeps({ [root]: ['com-git', 'pasta-comum'] }, [join(root, 'com-git', '.git')]);
+
+    expect(scanProjects([root], deps, 'all')).toEqual([
+      { path: join(root, 'com-git'), name: 'com-git', root },
+      { path: join(root, 'pasta-comum'), name: 'pasta-comum', root },
+    ]);
+  });
+
+  it('não desce ao 2º nível (a pasta de 1º nível já representa o grupo)', () => {
+    const root = 'C:\\roots\\generico';
+    const group = join(root, 'grupo');
+    const nested = join(group, 'proj-aninhado');
+    const deps = fakeDeps({ [root]: ['grupo'], [group]: ['proj-aninhado'] }, [join(nested, '.git')]);
+
+    expect(scanProjects([root], deps, 'all')).toEqual([{ path: group, name: 'grupo', root }]);
+  });
+
+  it('continua ignorando dotfolders e node_modules', () => {
+    const root = 'C:\\roots\\generico';
+    const deps = fakeDeps({ [root]: ['.oculta', 'node_modules', 'visivel'] });
+
+    expect(scanProjects([root], deps, 'all')).toEqual([{ path: join(root, 'visivel'), name: 'visivel', root }]);
+  });
+
+  it("sem o argumento, o default continua 'markers' (comportamento de sempre)", () => {
+    const root = 'C:\\roots\\generico';
+    const deps = fakeDeps({ [root]: ['pasta-comum'] });
+
+    expect(scanProjects([root], deps)).toEqual([]);
+  });
+});
+
 describe('scanProjects', () => {
   it('marca como projeto um diretório de nível 1 com .git', () => {
     const root = 'C:\\roots\\seazone';

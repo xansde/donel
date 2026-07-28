@@ -15,6 +15,7 @@ import type {
   ProfileHeadroomMap,
   ProfileSummaryDto,
   ProjectInfo,
+  ProjectScanMode,
   PtyCreateOptions,
   PtyCreateResult,
   PtyExitInfo,
@@ -157,6 +158,8 @@ const donelApi: DonelApi = {
 
     setNotificationPreference: (preference: NotificationPreference) =>
       ipcRenderer.invoke(CONFIG_CHANNELS.setNotificationPreference, preference) as Promise<AppConfigDto>,
+    setProjectScanMode: (mode: ProjectScanMode) =>
+      ipcRenderer.invoke(CONFIG_CHANNELS.setProjectScanMode, mode) as Promise<AppConfigDto>,
 
     setLauncherDefaults: (defaults: LauncherDefaultsDto) =>
       ipcRenderer.invoke(CONFIG_CHANNELS.setLauncherDefaults, defaults) as Promise<AppConfigDto>,

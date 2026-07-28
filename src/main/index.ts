@@ -15,6 +15,7 @@ import type {
   ProfileHeadroomMap,
   ProfileSummaryDto,
   ProjectInfo,
+  ProjectScanMode,
   PtyCreateOptions,
   PtyCreateResult,
   PhaseArchivedPayload,
@@ -352,8 +353,10 @@ function registerPtyIpcHandlers(): void {
         cols: options.cols,
         rows: options.rows,
         cwd: options.cwd,
-        command: resolved.path,
-        args: finalArgs,
+        // FIX ambiente genérico (28/07) — `launch` embrulha shim `.cmd`/`.ps1`
+        // (npm -g) no interpretador; ConPTY não executa script direto.
+        command: resolved.launch.command,
+        args: [...resolved.launch.argsPrefix, ...finalArgs],
         // T014 (FR-005/CA-3) — perfil ativo NO MOMENTO da criação da aba;
         // `undefined` pro perfil Principal (sem override de env).
         claudeConfigDir: activeProfileConfigDir,
@@ -439,7 +442,7 @@ function persistAppConfig(): void {
 
 /** Scan + merge de favoritos + ordenação — a mesma pipeline usada por list e favorite (T007), agora sobre `appConfig.projectRoots`/`appConfig.favorites` (T015). */
 function listProjectsWithFavorites(): ProjectInfo[] {
-  const scanned = scanProjects(appConfig.projectRoots, projectScanDeps);
+  const scanned = scanProjects(appConfig.projectRoots, projectScanDeps, appConfig.projectScanMode);
   return sortProjects(mergeFavorites(scanned, appConfig.favorites));
 }
 
@@ -482,6 +485,13 @@ function registerConfigIpcHandlers(): void {
 
   ipcMain.handle(CONFIG_CHANNELS.setNotificationPreference, (_event, preference: NotificationPreference): AppConfigDto => {
     appConfig = { ...appConfig, notificationPreference: preference };
+    persistAppConfig();
+    return toAppConfigDto(appConfig);
+  });
+
+  /** FIX ambiente genérico (28/07) — critério da listagem de projetos; valor desconhecido degrada pro default. */
+  ipcMain.handle(CONFIG_CHANNELS.setProjectScanMode, (_event, mode: ProjectScanMode): AppConfigDto => {
+    appConfig = { ...appConfig, projectScanMode: mode === 'all' ? 'all' : 'markers' };
     persistAppConfig();
     return toAppConfigDto(appConfig);
   });
@@ -804,7 +814,7 @@ function registerProfileIpcHandlers(): void {
     // — `createProfile` aguarda o bootstrap sem travar o event loop do main
     // (ver comentário de topo de `ProfileCreationIoDeps.runBootstrapPrompt`).
     const resolved = resolveClaudeExecutable(claudeResolveDeps);
-    const io = createSystemProfileCreationIoDeps(resolved.found ? resolved.path : null, profilePathDeps);
+    const io = createSystemProfileCreationIoDeps(resolved.found ? resolved.launch : null, profilePathDeps);
     await createProfile(name, profilePathDeps, io);
     return currentProfileList().map(toProfileSummaryDto);
   });

@@ -1,5 +1,27 @@
 # Donel Dev — o que mudou
 
+## 0.3.2 — 28/07/2026
+
+O primeiro teste numa máquina que não é a do autor rendeu três correções de
+"funciona em qualquer ambiente":
+
+- **Sessões abrem com o CLI instalado via npm.** Quem instalou o Claude Code
+  com `npm i -g` tem um script (`claude.cmd`), não um executável — e o app não
+  conseguia abri-lo: a sessão morria no nascimento, sem explicação. O app
+  agora detecta o formato e abre pelo interpretador certo; havendo os dois,
+  o executável de verdade tem preferência.
+- **Falha ao abrir um terminal agora diz o motivo.** Comando que não existe,
+  pasta de trabalho apagada ou o `node-pty` sem compilar apareciam como uma
+  aba morta. A mensagem de erro aparece no próprio terminal, com o que
+  conferir em cada caso.
+- **"O que aparece como projeto" virou preferência.** Por padrão a sidebar
+  continua mostrando só pastas com `.git/` ou `CLAUDE.md`; quem não organiza
+  o disco por repositório pode trocar para "Todas as pastas" em Preferências
+  — e a tela agora diz qual critério está ativo.
+- **Instalação assistida pelo Claude Code** (repo público): clonou, abriu o
+  `claude` na pasta e pediu "instala o app" — o passo a passo completo está
+  no `CLAUDE.md`, incluindo os planos B de build.
+
 ## 0.3.1 — 28/07/2026
 
 - **Tela preta ao clicar numa fase do mapa — corrigido.** Quando o manifesto

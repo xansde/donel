@@ -33,7 +33,7 @@ export { RESUME_FAILURE_WINDOW_MS, forgetIfOrphan, resumedSessionIdFromArgs, sho
 export type { ResumeFailureSignal } from './resumeFailure';
 
 export { CONFIG_CHANNELS } from './config';
-export type { AppConfigDto, DonelConfigApi, LauncherDefaultsDto, NotificationPreference, SessionNamesMap } from './config';
+export type { AppConfigDto, DonelConfigApi, LauncherDefaultsDto, NotificationPreference, ProjectScanMode, SessionNamesMap } from './config';
 
 // 003-modo-dev (T301/T307) — estado próprio do Modo Dev + canais `devMode:*`.
 export {

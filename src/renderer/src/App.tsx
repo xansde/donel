@@ -11,6 +11,7 @@ import type {
   PhaseArchivedPayload,
   ProfileHeadroomMap,
   ProjectInfo,
+  ProjectScanMode,
   SemaphoreStateInfo,
   SessionSummaryDto,
 } from '../../shared';
@@ -886,6 +887,18 @@ export function App(): React.JSX.Element {
   // aplicada pelo efeito de notificação mais abaixo.
   const handleChangeNotificationPreference = (preference: NotificationPreference): void => {
     void window.donel.config.setNotificationPreference(preference).then(setAppConfig).catch(() => undefined);
+  };
+
+  // FIX ambiente genérico (28/07) — troca do critério da listagem re-escaneia
+  // na hora, mesmo espírito instantâneo do add/remove de root.
+  const handleChangeProjectScanMode = (mode: ProjectScanMode): void => {
+    void window.donel.config
+      .setProjectScanMode(mode)
+      .then((config) => {
+        setAppConfig(config);
+        refreshProjectsAfterRootsChange();
+      })
+      .catch(() => undefined);
   };
 
   /**
@@ -2064,9 +2077,11 @@ export function App(): React.JSX.Element {
         open={preferencesOpen}
         onClose={() => setPreferencesOpen(false)}
         projectRoots={appConfig?.projectRoots ?? []}
+        projectScanMode={appConfig?.projectScanMode ?? 'markers'}
         notificationPreference={appConfig?.notificationPreference ?? FALLBACK_NOTIFICATION_PREFERENCE}
         onAddRoot={handleAddProjectRoot}
         onRemoveRoot={handleRemoveProjectRoot}
+        onChangeProjectScanMode={handleChangeProjectScanMode}
         onChangeNotificationPreference={handleChangeNotificationPreference}
       />
     </div>

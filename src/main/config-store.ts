@@ -1,7 +1,7 @@
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { EffortLevel, ModelAlias, PermissionMode } from '../shared/commandBuilder';
-import type { AppConfigDto, LauncherDefaultsDto, NotificationPreference, SessionNamesMap } from '../shared/config';
+import type { AppConfigDto, LauncherDefaultsDto, NotificationPreference, ProjectScanMode, SessionNamesMap } from '../shared/config';
 import type {
   ArchivedPhaseSession,
   ArchivedPhaseSessions,
@@ -71,6 +71,8 @@ const DEFAULT_NOTIFICATION_PREFERENCE: NotificationPreference = 'permission-only
 export interface AppConfig {
   readonly version: number;
   readonly projectRoots: readonly string[];
+  /** FIX ambiente genérico (28/07) — critério da listagem de projetos; 'markers' é o comportamento de sempre. */
+  readonly projectScanMode: ProjectScanMode;
   readonly favorites: readonly string[];
   readonly activeProfileSlug: string;
   readonly launcherDefaults: LauncherDefaultsDto;
@@ -92,6 +94,7 @@ export function defaultAppConfig(projectRoots: readonly string[]): AppConfig {
   return {
     version: CONFIG_SCHEMA_VERSION,
     projectRoots,
+    projectScanMode: 'markers',
     favorites: [],
     activeProfileSlug: PRINCIPAL_PROFILE_SLUG,
     launcherDefaults: DEFAULT_LAUNCHER_DEFAULTS,
@@ -119,6 +122,7 @@ function defaultDevModeState(): DevModeState {
 export function toAppConfigDto(config: AppConfig): AppConfigDto {
   return {
     projectRoots: config.projectRoots,
+    projectScanMode: config.projectScanMode,
     launcherDefaults: config.launcherDefaults,
     notificationPreference: config.notificationPreference,
     sessionNames: config.sessionNames,
@@ -409,6 +413,7 @@ export function sanitizeAppConfig(parsed: unknown, defaults: AppConfig): AppConf
   return {
     version: CONFIG_SCHEMA_VERSION,
     projectRoots: isStringArray(candidate.projectRoots) ? candidate.projectRoots : defaults.projectRoots,
+    projectScanMode: candidate.projectScanMode === 'all' ? 'all' : defaults.projectScanMode,
     favorites: isStringArray(candidate.favorites) ? candidate.favorites : defaults.favorites,
     activeProfileSlug:
       typeof candidate.activeProfileSlug === 'string' && candidate.activeProfileSlug.trim()

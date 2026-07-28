@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import type { ProjectInfo } from '../shared';
+import type { ProjectScanMode } from '../shared/config';
 import { sortProjects } from '../shared/projects';
 
 // `sortProjects` mora em `src/shared/projects.ts` (pura, sem node:fs) desde
@@ -40,8 +41,17 @@ function hasProjectMarker(dirPath: string, deps: ScanDeps): boolean {
  * é um projeto (não desce mais); sem marcador, os filhos de nível 2 são
  * checados. `favorite`/`missing` NÃO são preenchidos aqui — `mergeFavorites`
  * cuida disso a partir do config (T015 formaliza o ConfigStore).
+ *
+ * FIX ambiente genérico (28/07, teste do colega): em `mode: 'all'` TODA
+ * pasta de 1º nível das raízes vira projeto (sem exigir marcador e sem
+ * descer ao 2º nível) — para quem não organiza o disco por repositório.
+ * `'markers'` (default) mantém o comportamento de sempre.
  */
-export function scanProjects(roots: readonly string[], deps: ScanDeps): Omit<ProjectInfo, 'favorite' | 'missing'>[] {
+export function scanProjects(
+  roots: readonly string[],
+  deps: ScanDeps,
+  mode: ProjectScanMode = 'markers',
+): Omit<ProjectInfo, 'favorite' | 'missing'>[] {
   const projects: Omit<ProjectInfo, 'favorite' | 'missing'>[] = [];
   const seenPaths = new Set<string>();
 
@@ -56,6 +66,10 @@ export function scanProjects(roots: readonly string[], deps: ScanDeps): Omit<Pro
 
     for (const level1Name of deps.readDirNames(root).filter(isCandidateDirName)) {
       const level1Path = join(root, level1Name);
+      if (mode === 'all') {
+        addProject(level1Path, level1Name, root);
+        continue;
+      }
       if (hasProjectMarker(level1Path, deps)) {
         addProject(level1Path, level1Name, root);
         continue;

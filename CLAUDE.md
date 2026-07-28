@@ -5,6 +5,43 @@ várias sessões em abas. **O app não reimplementa o agente** — se uma mudan�
 começar a interpretar prompt, gerenciar contexto ou falar com a API, ela está no
 lugar errado.
 
+## Instalação assistida — quando o usuário pedir "instala o app"
+
+Quem clona este repo pode pedir a instalação inteira ao Claude Code. Execute
+os passos abaixo NA ORDEM, verificando cada um antes de seguir — não declare
+instalado sem ter visto o instalador terminar com exit 0.
+
+1. **Pré-requisitos** (aborte com instrução clara se faltar):
+   - `node --version` → 20+.
+   - `claude --version` → CLI instalado. Se faltar, instrua a instalar por
+     https://claude.com/claude-code e rodar `claude` → `/login` uma vez.
+   - Windows x64 (o app usa ConPTY; não roda em Linux/macOS).
+2. **Dependências**: `npm install`. Se falhar no `electron-rebuild` do
+   node-pty (o erro típico menciona MSBuild/gyp), há dois caminhos, nesta
+   ordem: (a) instalar Visual Studio Build Tools (workload C++) + Python 3 e
+   repetir `npm install`; (b) `npm install --ignore-scripts` seguido de
+   `npx patch-package` — os prebuilds do node-pty 1.1.0 costumam bastar.
+   ATENÇÃO no caminho (b): rode um smoke de terminal antes de prosseguir
+   (passo 4) — ABI errada de node-pty = nenhum terminal abre no app.
+3. **Verificação**: `npm run typecheck` e `npm test` — os dois precisam
+   passar. Não pule.
+4. **Prova de fumaça do PTY**: `npm run build` e depois
+   `npx playwright test -c tests/smoke/playwright.config.ts terminal-copy-paste`
+   — prova que node-pty compilou de verdade nesta máquina (abre um shell
+   real). Se os browsers do Playwright faltarem: `npx playwright install`.
+5. **Instalador**: `npm run dist` → gera `release\Donel Dev-Setup-<versão>.exe`.
+6. **Instalar**: rodar o setup gerado (aceita `/S` para silencioso). É
+   per-user, sem admin, instala em `%LOCALAPPDATA%\Programs\Donel Dev` e cria
+   atalho na área de trabalho e no menu Iniciar.
+7. **Confirmar**: o exe existe em `%LOCALAPPDATA%\Programs\Donel Dev\Donel
+   Dev.exe` e abre. Só então reporte concluído.
+
+Duas configurações que valem mencionar ao usuário no final:
+- Preferências → "Pastas-raiz de projetos": onde a sidebar procura projetos.
+- Preferências → "O que aparece como projeto": por padrão só pastas com
+  `.git/` ou `CLAUDE.md` aparecem; "Todas as pastas" lista qualquer pasta de
+  1º nível das raízes.
+
 ## Arquitetura em uma tela
 
 - `src/main/` — processo main. PTY (`pty-manager.ts`), resolução do executável

@@ -49,6 +49,12 @@ do terminal, e as sessões continuam vivendo no `~/.claude` da sua máquina.
 
 ## Buildar e rodar
 
+> **Atalho: deixe o Claude Code instalar.** Se você já tem o `claude` na
+> máquina, abra-o dentro da pasta clonada e peça **"instala o app"** — o
+> `CLAUDE.md` deste repositório contém o passo a passo completo (dependências,
+> verificação, fallback do node-pty, instalador) e o agente executa tudo,
+> inclusive os planos B de quando o `npm install` falha.
+
 ```powershell
 git clone https://github.com/xansde/donel.git
 cd donel
@@ -112,17 +118,19 @@ tropeçar neles, não é a sua máquina.
 
 1. **Abrir uma sessão cai direto em "Sessão encerrada".** O overlay que anuncia o
    fim da sessão é 92% opaco e cobre o terminal inteiro, escondendo justamente a
-   mensagem de erro que o `claude` imprimiu antes de sair. As causas prováveis por
-   baixo: (a) o launcher usa `fable`/`high` como padrão, e o CLI sai com erro se a
-   sua conta não tem acesso ao modelo ou se a sua versão não conhece `--effort`;
-   (b) a resolução do executável pega o **primeiro** resultado de
-   `where.exe claude`, que numa instalação via npm é o shim sem extensão em vez
-   do `claude.cmd`/`claude.exe`. Enquanto não estiver corrigido, contorne
-   trocando modelo e esforço no launcher antes de subir a sessão.
-2. **A sidebar não mostra todas as pastas do diretório de projetos.** O scanner
-   só considera projeto o diretório que tem `.git/` ou `CLAUDE.md`, e varre no
-   máximo 2 níveis. Pasta de código sem nenhum dos dois marcadores fica
-   invisível, sem aviso.
+   mensagem de erro que o `claude` imprimiu antes de sair. Causa provável
+   restante: o launcher usa `fable`/`high` como padrão, e o CLI sai com erro se a
+   sua conta não tem acesso ao modelo ou se a sua versão não conhece `--effort` —
+   contorne trocando modelo e esforço no launcher antes de subir a sessão.
+   *(A outra causa — instalação do CLI via npm expor `claude.cmd` em vez de um
+   `.exe`, que o app não conseguia executar — foi corrigida na 0.3.2: shims são
+   detectados e embrulhados no interpretador, e um spawn que falha agora imprime
+   o motivo no próprio terminal.)*
+2. **~~A sidebar não mostra todas as pastas do diretório de projetos.~~
+   Configurável desde a 0.3.2.** Por padrão o scanner considera projeto só o
+   diretório com `.git/` ou `CLAUDE.md` (até 2 níveis). Em **Preferências → "O
+   que aparece como projeto"** dá para trocar para **Todas as pastas** (1º nível
+   das raízes, sem exigir marcador).
 3. **Os padrões de pasta-raiz são `~/seazone` e `~/pessoal`** — os caminhos da
    máquina de quem escreveu o app. Na primeira abertura a sidebar vem vazia; vá
    em **engrenagem → Preferências → Pastas-raiz de projetos** e aponte as suas.

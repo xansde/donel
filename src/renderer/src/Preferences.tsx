@@ -2,7 +2,7 @@ import { Button, Modal, Select, TextInput } from '@donel-dev/design-system';
 import type { SelectOption } from '@donel-dev/design-system';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import type { NotificationPreference } from '../../shared/config';
+import type { NotificationPreference, ProjectScanMode } from '../../shared/config';
 import styles from './Preferences.module.css';
 
 // T015 — UI de Preferências (FR-007, feedback E2E rodada 3 "roots de
@@ -16,6 +16,13 @@ import styles from './Preferences.module.css';
 // "Salvar" separado, mesmo espírito instantâneo do resto do app (favoritar
 // projeto, trocar perfil).
 
+// FIX ambiente genérico (28/07, teste do colega) — o critério "só pasta com
+// .git/CLAUDE.md" parecia bug pra quem não organiza o disco por repositório.
+const SCAN_MODE_OPTIONS: SelectOption[] = [
+  { value: 'markers', label: 'Só pastas de projeto', description: 'padrão — pastas com .git/ ou CLAUDE.md, até 2 níveis abaixo das raízes' },
+  { value: 'all', label: 'Todas as pastas', description: 'toda pasta no 1º nível das raízes, com ou sem marcador de projeto' },
+];
+
 const NOTIFICATION_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'Todas as transições', description: 'notifica sempre que uma sessão em background passa a aguardar ou pedir permissão' },
   { value: 'permission-only', label: 'Só permissão pendente', description: 'padrão — só quando uma sessão trava esperando sua aprovação' },
@@ -26,9 +33,11 @@ export interface PreferencesProps {
   open: boolean;
   onClose: () => void;
   projectRoots: readonly string[];
+  projectScanMode: ProjectScanMode;
   notificationPreference: NotificationPreference;
   onAddRoot: (root: string) => void;
   onRemoveRoot: (root: string) => void;
+  onChangeProjectScanMode: (mode: ProjectScanMode) => void;
   onChangeNotificationPreference: (preference: NotificationPreference) => void;
 }
 
@@ -36,9 +45,11 @@ export function Preferences({
   open,
   onClose,
   projectRoots,
+  projectScanMode,
   notificationPreference,
   onAddRoot,
   onRemoveRoot,
+  onChangeProjectScanMode,
   onChangeNotificationPreference,
 }: PreferencesProps): React.JSX.Element {
   const [newRoot, setNewRoot] = useState('');
@@ -63,7 +74,7 @@ export function Preferences({
     >
       <div className={styles.section} data-testid="preferences-roots-section">
         <h3 className={styles.sectionTitle}>Pastas-raiz de projetos</h3>
-        <p className={styles.sectionHint}>Onde a sidebar procura projetos (até 2 níveis, `.git/` ou `CLAUDE.md`).</p>
+        <p className={styles.sectionHint}>Onde a sidebar procura projetos — o critério do que aparece é a seção abaixo.</p>
         <ul className={styles.rootList}>
           {projectRoots.length === 0 ? <li className={styles.hint}>Nenhuma pasta-raiz configurada.</li> : null}
           {projectRoots.map((root) => (
@@ -99,6 +110,18 @@ export function Preferences({
           <Button variant="secondary" onClick={handleAdd} disabled={!newRoot.trim()}>
             Adicionar
           </Button>
+        </div>
+      </div>
+
+      <div className={styles.section} data-testid="preferences-scan-mode-section">
+        <h3 className={styles.sectionTitle}>O que aparece como projeto</h3>
+        <p className={styles.sectionHint}>Se uma pasta sua não aparece na sidebar, o critério provavelmente é este.</p>
+        <div data-testid="project-scan-mode-select">
+          <Select
+            value={projectScanMode}
+            options={SCAN_MODE_OPTIONS}
+            onChange={(value) => onChangeProjectScanMode(value as ProjectScanMode)}
+          />
         </div>
       </div>
 

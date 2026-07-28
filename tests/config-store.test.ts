@@ -37,6 +37,7 @@ describe('defaultAppConfig (puro)', () => {
     expect(config).toEqual({
       version: 1,
       projectRoots: FAKE_ROOTS,
+      projectScanMode: 'markers',
       favorites: [],
       activeProfileSlug: 'principal',
       launcherDefaults: { model: 'fable', effort: 'high', permissionMode: 'acceptEdits' },
@@ -65,6 +66,7 @@ describe('toAppConfigDto (puro)', () => {
     };
     expect(toAppConfigDto(config)).toEqual({
       projectRoots: FAKE_ROOTS,
+      projectScanMode: 'markers',
       launcherDefaults: { model: 'fable', effort: 'high', permissionMode: 'acceptEdits' },
       notificationPreference: 'permission-only',
       sessionNames: {},
@@ -166,6 +168,7 @@ describe('sanitizeAppConfig (puro — validação de schema)', () => {
     const valid: AppConfig = {
       version: 1,
       projectRoots: ['C:\\x'],
+      projectScanMode: 'all',
       favorites: ['C:\\y'],
       activeProfileSlug: 'tecnologia-claude-3',
       launcherDefaults: { model: 'sonnet', effort: 'max', permissionMode: 'plan' },
@@ -185,6 +188,18 @@ describe('sanitizeAppConfig (puro — validação de schema)', () => {
       },
     };
     expect(sanitizeAppConfig(valid, baseDefaults())).toEqual(valid);
+  });
+
+  // FIX ambiente genérico (28/07) — o critério da listagem de projetos é
+  // config nova; valor desconhecido degrada pro default sem derrubar o resto.
+  it("projectScanMode desconhecido cai no default; 'all' é preservado", () => {
+    const defaults = baseDefaults();
+
+    const withUnknown = sanitizeAppConfig({ version: 1, projectScanMode: 'tudo-errado' }, defaults);
+    expect(withUnknown.projectScanMode).toBe(defaults.projectScanMode);
+
+    const withAll = sanitizeAppConfig({ version: 1, projectScanMode: 'all' }, defaults);
+    expect(withAll.projectScanMode).toBe('all');
   });
 
   it('valor não-objeto (null, array, primitivo) cai inteiro no default', () => {
@@ -209,6 +224,7 @@ describe('sanitizeAppConfig (puro — validação de schema)', () => {
     expect(sanitizeAppConfig(partiallyCorrupted, defaults)).toEqual({
       version: 1,
       projectRoots: defaults.projectRoots, // fallback
+      projectScanMode: defaults.projectScanMode, // ausente no objeto → default
       favorites: ['C:\\ok'],
       activeProfileSlug: defaults.activeProfileSlug, // fallback
       launcherDefaults: { model: 'sonnet', effort: 'high', permissionMode: 'plan' },

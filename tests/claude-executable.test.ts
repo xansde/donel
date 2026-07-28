@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  buildClaudeLaunchSpec,
   createSystemResolveDeps,
   fallbackClaudePath,
   resolveClaudeExecutable,
@@ -12,10 +13,15 @@ import {
 // Casos (b)/(c) do dossiê de verificação: deps mockadas, sem tocar
 // filesystem/processo real. O caso (a) (máquina real) fica no describe
 // "integração" no fim do arquivo.
+//
+// FIX ambiente genérico (28/07): `which` passou a devolver TODOS os matches
+// do PATH e o resultado ganhou `launch` — shim `.cmd`/`.ps1` (instalação via
+// `npm i -g`) precisa do interpretador; spawná-lo cru no ConPTY era a causa
+// do "não dava pra abrir sessão claude" na máquina do colega.
 
 function fakeDeps(overrides: Partial<ResolveClaudeDeps>): ResolveClaudeDeps {
   return {
-    which: () => null,
+    which: () => [],
     existsSync: () => false,
     homedir: () => 'C:\\Users\\fake-user',
     ...overrides,
@@ -24,27 +30,62 @@ function fakeDeps(overrides: Partial<ResolveClaudeDeps>): ResolveClaudeDeps {
 
 describe('resolveClaudeExecutable', () => {
   it('resolves via PATH when `which` finds a match', () => {
-    const deps = fakeDeps({ which: (cmd) => (cmd === 'claude' ? 'C:\\tools\\claude.exe' : null) });
+    const deps = fakeDeps({ which: (cmd) => (cmd === 'claude' ? ['C:\\tools\\claude.exe'] : []) });
 
     const result = resolveClaudeExecutable(deps);
 
-    expect(result).toEqual({ found: true, path: 'C:\\tools\\claude.exe', source: 'path' });
+    expect(result).toEqual({
+      found: true,
+      path: 'C:\\tools\\claude.exe',
+      source: 'path',
+      launch: { command: 'C:\\tools\\claude.exe', argsPrefix: [] },
+    });
+  });
+
+  it('prefere um `.exe` mesmo quando o shim `.cmd` vem primeiro no PATH (npm -g + instalador nativo)', () => {
+    const deps = fakeDeps({
+      which: () => ['C:\\Users\\fake-user\\AppData\\Roaming\\npm\\claude.cmd', 'C:\\tools\\claude.exe'],
+    });
+
+    const result = resolveClaudeExecutable(deps);
+
+    expect(result.found).toBe(true);
+    if (!result.found) throw new Error('unreachable');
+    expect(result.path).toBe('C:\\tools\\claude.exe');
+    expect(result.launch).toEqual({ command: 'C:\\tools\\claude.exe', argsPrefix: [] });
+  });
+
+  it('só shim `.cmd` no PATH (npm -g puro) → launch embrulha em cmd.exe /c', () => {
+    const shim = 'C:\\Users\\fake-user\\AppData\\Roaming\\npm\\claude.cmd';
+    const deps = fakeDeps({ which: () => [shim] });
+
+    const result = resolveClaudeExecutable(deps);
+
+    expect(result.found).toBe(true);
+    if (!result.found) throw new Error('unreachable');
+    expect(result.path).toBe(shim);
+    expect(result.launch).toEqual({ command: 'cmd.exe', argsPrefix: ['/c', shim] });
   });
 
   it('falls back to ~/.local/bin/claude.exe when PATH misses but the fallback file exists', () => {
     const expectedPath = fallbackClaudePath(() => 'C:\\Users\\fake-user');
     const deps = fakeDeps({
-      which: () => null,
+      which: () => [],
       existsSync: (path) => path === expectedPath,
     });
 
     const result = resolveClaudeExecutable(deps);
 
-    expect(result).toEqual({ found: true, path: expectedPath, source: 'fallback' });
+    expect(result).toEqual({
+      found: true,
+      path: expectedPath,
+      source: 'fallback',
+      launch: { command: expectedPath, argsPrefix: [] },
+    });
   });
 
   it('reports not-found with the expected fallback path when neither PATH nor the fallback exist (CA-5)', () => {
-    const deps = fakeDeps({ which: () => null, existsSync: () => false });
+    const deps = fakeDeps({ which: () => [], existsSync: () => false });
 
     const result = resolveClaudeExecutable(deps);
 
@@ -55,13 +96,38 @@ describe('resolveClaudeExecutable', () => {
 
   it('prefers the PATH match over the fallback when both exist', () => {
     const deps = fakeDeps({
-      which: () => 'C:\\tools\\claude.exe',
+      which: () => ['C:\\tools\\claude.exe'],
       existsSync: () => true,
     });
 
     const result = resolveClaudeExecutable(deps);
 
-    expect(result).toEqual({ found: true, path: 'C:\\tools\\claude.exe', source: 'path' });
+    expect(result.found).toBe(true);
+    if (!result.found) throw new Error('unreachable');
+    expect(result.path).toBe('C:\\tools\\claude.exe');
+    expect(result.source).toBe('path');
+  });
+});
+
+describe('buildClaudeLaunchSpec', () => {
+  it('.exe roda direto, sem prefixo', () => {
+    expect(buildClaudeLaunchSpec('C:\\tools\\claude.exe')).toEqual({ command: 'C:\\tools\\claude.exe', argsPrefix: [] });
+  });
+
+  it('.cmd/.bat embrulham em cmd.exe /c (case-insensitive)', () => {
+    expect(buildClaudeLaunchSpec('C:\\npm\\claude.CMD')).toEqual({ command: 'cmd.exe', argsPrefix: ['/c', 'C:\\npm\\claude.CMD'] });
+    expect(buildClaudeLaunchSpec('C:\\npm\\claude.bat')).toEqual({ command: 'cmd.exe', argsPrefix: ['/c', 'C:\\npm\\claude.bat'] });
+  });
+
+  it('.ps1 embrulha em powershell -File com bypass de execution policy', () => {
+    expect(buildClaudeLaunchSpec('C:\\npm\\claude.ps1')).toEqual({
+      command: 'powershell.exe',
+      argsPrefix: ['-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'C:\\npm\\claude.ps1'],
+    });
+  });
+
+  it('caminho sem extensão conhecida roda direto (não inventa interpretador)', () => {
+    expect(buildClaudeLaunchSpec('C:\\tools\\claude')).toEqual({ command: 'C:\\tools\\claude', argsPrefix: [] });
   });
 });
 

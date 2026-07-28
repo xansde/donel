@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPtyEnv, PtyManager } from '../src/main/pty-manager';
+import { buildPtyEnv, buildSpawnFailureMessage, PtyManager } from '../src/main/pty-manager';
 
 // T005 — caso (c) do dossiê de verificação: um processo que sai rápido deve
 // disparar `onExit` (é o mesmo sinal que o TerminalPane usa pra mostrar o
@@ -118,5 +118,43 @@ describe('PtyManager — claudeConfigDir chega no processo spawnado (FR-005/CA-3
     expect(collected).toContain('C:\\Users\\fake-user\\.claude-profiles\\conta-b');
 
     manager.kill(ptyId);
+  });
+});
+
+// FIX ambiente genérico (28/07, teste do colega) — spawn que falha precisa
+// virar mensagem acionável, nunca exceção crua do node-pty atravessando o
+// IPC (a aba nascia morta sem explicação na máquina dele).
+describe('PtyManager — falha de spawn vira mensagem acionável', () => {
+  it('comando inexistente lança com o comando no texto e a dica do node-pty', () => {
+    const manager = new PtyManager();
+
+    let thrown: unknown = null;
+    try {
+      manager.create({ cols: 80, rows: 24, command: 'Z:\\nao-existe\\claude-fantasma.exe', args: [] });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    const message = (thrown as Error).message;
+    expect(message).toContain('não consegui iniciar');
+    expect(message).toContain('claude-fantasma.exe');
+    expect(message).toContain('node-pty');
+  });
+
+  it('buildSpawnFailureMessage inclui comando, cwd e as duas dicas de diagnóstico', () => {
+    const message = buildSpawnFailureMessage('C:\\npm\\claude.cmd', 'C:\\repo', new Error('File not found'));
+
+    expect(message).toContain('C:\\npm\\claude.cmd');
+    expect(message).toContain('C:\\repo');
+    expect(message).toContain('File not found');
+    expect(message).toContain('node-pty');
+  });
+
+  it('buildSpawnFailureMessage sem cwd omite o parêntese e nunca lança com erro não-Error', () => {
+    const message = buildSpawnFailureMessage('cmd.exe', undefined, 'string crua');
+
+    expect(message).not.toContain('pasta de trabalho:');
+    expect(message).toContain('string crua');
   });
 });

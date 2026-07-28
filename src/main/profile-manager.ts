@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmdirSync, symlinkSync, writeFileSync, copyFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join, normalize } from 'node:path';
+import type { ClaudeLaunchSpec } from './claude-executable';
 
 // T014 — ProfileManager (FR-005, FR-012 parcial, CA-3), implementado
 // EXATAMENTE conforme `specs/001-mvp/spike-t001-resultado.md` (LEI para esta
@@ -259,11 +260,14 @@ export async function executeProfileCreationPlan(plan: ProfileCreationPlan, io: 
 }
 
 /** I/O — `claude -p "OK" --model haiku` assíncrono com timeout duro (mesma cautela do Start-Job de 30s do spike — nunca travar em prompt interativo), nunca lança/rejeita. */
-function runBootstrapPromptAsync(claudeExecutablePath: string, configDir: string): Promise<void> {
+function runBootstrapPromptAsync(claudeLaunch: ClaudeLaunchSpec, configDir: string): Promise<void> {
   return new Promise((resolve) => {
     let child: ReturnType<typeof spawn>;
     try {
-      child = spawn(claudeExecutablePath, ['-p', 'OK', '--model', 'haiku'], {
+      // FIX ambiente genérico (28/07) — shim `.cmd`/`.ps1` (npm -g) precisa
+      // do interpretador; `spawn` sem `shell` lança EINVAL pra script no
+      // Node 20+ e o bootstrap virava no-op silencioso.
+      child = spawn(claudeLaunch.command, [...claudeLaunch.argsPrefix, '-p', 'OK', '--model', 'haiku'], {
         env: { ...process.env, CLAUDE_CONFIG_DIR: configDir } as NodeJS.ProcessEnv,
         windowsHide: true,
       });
@@ -294,8 +298,8 @@ function runBootstrapPromptAsync(claudeExecutablePath: string, configDir: string
   });
 }
 
-/** Deps reais (filesystem/processo da máquina) — só o main process usa. `claudeExecutablePath` vem de `resolveClaudeExecutable` (claude-executable.ts) — reaproveitado, não reimplementado aqui. */
-export function createSystemProfileCreationIoDeps(claudeExecutablePath: string | null, deps: ProfilePathsDeps): ProfileCreationIoDeps {
+/** Deps reais (filesystem/processo da máquina) — só o main process usa. `claudeLaunch` vem de `resolveClaudeExecutable` (claude-executable.ts) — reaproveitado, não reimplementado aqui. */
+export function createSystemProfileCreationIoDeps(claudeLaunch: ClaudeLaunchSpec | null, deps: ProfilePathsDeps): ProfileCreationIoDeps {
   return {
     existsSync,
     mkdirSync: (path) => mkdirSync(path, { recursive: true }),
@@ -303,8 +307,8 @@ export function createSystemProfileCreationIoDeps(claudeExecutablePath: string |
     copyFile: (sourcePath, destPath) => copyFileSync(sourcePath, destPath),
     createJunction: (targetPath, linkPath) => symlinkSync(targetPath, linkPath, 'junction'),
     runBootstrapPrompt: (configDir) => {
-      if (!claudeExecutablePath) return Promise.resolve(); // CA-5 — claude não resolvido; nada a rodar, doctor reporta mcpServers ausente depois.
-      return runBootstrapPromptAsync(claudeExecutablePath, configDir);
+      if (!claudeLaunch) return Promise.resolve(); // CA-5 — claude não resolvido; nada a rodar, doctor reporta mcpServers ausente depois.
+      return runBootstrapPromptAsync(claudeLaunch, configDir);
     },
     readClaudeJson: (path) => {
       try {

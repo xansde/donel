@@ -92,6 +92,24 @@ export type PtyExitListener = (ptyId: string, exitCode: number, signal?: number)
 const FREE_TERMINAL_SHELL = 'powershell.exe';
 const FREE_TERMINAL_ARGS = ['-NoLogo'];
 
+/**
+ * Mensagem de falha de spawn com diagnóstico acionável (pura, testável).
+ * Cobre as três causas vistas em máquina genérica: comando que não existe,
+ * `cwd` que não existe, e o addon do node-pty compilado pra ABI errada
+ * (`npm install` interrompido ou rodado com `--ignore-scripts`).
+ */
+export function buildSpawnFailureMessage(command: string, cwd: string | undefined, error: unknown): string {
+  const original = error instanceof Error ? error.message : String(error);
+  const hints = [
+    `não consegui iniciar "${command}"`,
+    cwd ? `(pasta de trabalho: ${cwd})` : null,
+    `— ${original}.`,
+    'Confira: o comando existe nessa máquina? A pasta de trabalho ainda existe?',
+    'Se NENHUM terminal abre (nem o shell livre), o node-pty não compilou — rode `npm install` de novo no repositório do app.',
+  ].filter(Boolean);
+  return hints.join(' ');
+}
+
 export class PtyManager {
   private readonly ptys = new Map<string, PtyRecord>();
   private readonly dataListeners = new Set<PtyDataListener>();
@@ -115,13 +133,25 @@ export class PtyManager {
     // gotcha do atalho do Desktop que resolve o `claude.exe`/MCPs stdio),
     // exceto `CLAUDE_CONFIG_DIR` quando a aba nasceu sob um perfil não-
     // Principal (T014, buildPtyEnv acima).
-    const ptyProcess = spawn(command, args, {
-      name: 'xterm-color',
-      cols: options.cols,
-      rows: options.rows,
-      cwd: options.cwd ?? os.homedir(),
-      env: buildPtyEnv(process.env, options.claudeConfigDir),
-    });
+    //
+    // FIX ambiente genérico (28/07, teste do colega) — o spawn do node-pty
+    // lança SÍNCRONO (comando inexistente, cwd inválido, addon com ABI
+    // errada) e a exceção crua atravessava o IPC embrulhada pelo Electron:
+    // a aba nascia morta com uma mensagem inescrutável (ou nenhuma). O
+    // renderer já mostra qualquer rejeição no terminal (TerminalPane, catch
+    // genérico) — daqui sai uma mensagem que diz O QUE tentar.
+    let ptyProcess: IPty;
+    try {
+      ptyProcess = spawn(command, args, {
+        name: 'xterm-color',
+        cols: options.cols,
+        rows: options.rows,
+        cwd: options.cwd ?? os.homedir(),
+        env: buildPtyEnv(process.env, options.claudeConfigDir),
+      });
+    } catch (error) {
+      throw new Error(buildSpawnFailureMessage(command, options.cwd, error));
+    }
 
     const record: PtyRecord = {
       id,

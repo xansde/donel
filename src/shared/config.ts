@@ -22,7 +22,18 @@ export const CONFIG_CHANNELS = {
   setLauncherDefaults: 'config:setLauncherDefaults',
   /** T708 (007-favoritos-sessoes) — estado de colapso do grupo "Favoritos" (CA-1), persistido por projeto. */
   setCollapsedFavorites: 'config:setCollapsedFavorites',
+  /** FIX ambiente genérico (28/07) — critério da listagem de projetos configurável. */
+  setProjectScanMode: 'config:setProjectScanMode',
 } as const;
+
+/**
+ * FIX ambiente genérico (28/07, teste do colega): 'markers' (default, o
+ * comportamento de sempre — só pasta com `.git/` ou `CLAUDE.md`, até 2
+ * níveis) × 'all' (toda pasta de 1º nível das raízes, para quem não organiza
+ * o disco por repositório). A preferência dele é 'markers'; 'all' existe
+ * para a máquina genérica.
+ */
+export type ProjectScanMode = 'markers' | 'all';
 
 /**
  * FIX (feedback E2E rodada 4/batch 3, achado "notificar toda transição vira
@@ -50,6 +61,7 @@ export type SessionNamesMap = Readonly<Record<string, StoredSessionName>>;
 /** Subconjunto do `AppConfig` (main) exposto ao renderer — ver comentário de topo. */
 export interface AppConfigDto {
   readonly projectRoots: readonly string[];
+  readonly projectScanMode: ProjectScanMode;
   readonly launcherDefaults: LauncherDefaultsDto;
   readonly notificationPreference: NotificationPreference;
   readonly sessionNames: SessionNamesMap;
@@ -88,4 +100,6 @@ export interface DonelConfigApi {
   setLauncherDefaults(defaults: LauncherDefaultsDto): Promise<AppConfigDto>;
   /** T708 (007) — substitui a lista INTEIRA de projetos favoritados colapsados (CA-1). */
   setCollapsedFavorites(collapsed: string[]): Promise<AppConfigDto>;
+  /** FIX ambiente genérico (28/07) — troca o critério da listagem; quem chama refaz `projects.list()` em seguida. */
+  setProjectScanMode(mode: ProjectScanMode): Promise<AppConfigDto>;
 }
