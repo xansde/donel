@@ -11,6 +11,7 @@
 // pros dois, só que agora persistidos dentro do MESMO config.json.
 
 import type { EffortLevel, ModelAlias, PermissionMode } from './commandBuilder';
+import type { DevModeState } from './devMode';
 import type { StoredSessionName } from './sessionName';
 import type { SessionRegistry } from './sessionRegistry';
 
@@ -67,6 +68,14 @@ export interface AppConfigDto {
    * (default) — evita crescer a lista a cada favorito novo.
    */
   readonly collapsedFavorites: readonly string[];
+  /**
+   * T306 (003-modo-dev) — estado próprio do Modo Dev (CA-21/CA-22): tudo o
+   * que disco/board não sabem (discoveries abertos, foco, session-id
+   * arquivado, tabela de defaults do CA-4). Exposto inteiro ao renderer —
+   * diferente de `sessionRegistry`, não há campo a esconder aqui (nenhum é
+   * "só do main").
+   */
+  readonly devMode: DevModeState;
 }
 
 /** API tipada exposta pelo preload em `window.donel.config`. */

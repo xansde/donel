@@ -71,3 +71,23 @@ export {
   SMART_ZONE_COLOR_VAR,
 } from './lib/smartZone';
 export type { SmartZone } from './lib/smartZone';
+
+// === Batch A2 (003-modo-dev, T331-T334) — extensões aprovadas em 27/07 ===
+
+export { PhaseStateGlyph, PHASE_STATE_LABEL_PT } from './components/PhaseStateGlyph';
+export type { PhaseStateGlyphProps, PhaseState } from './components/PhaseStateGlyph';
+
+export { AnnotationTag } from './components/AnnotationTag';
+export type { AnnotationTagProps, AnnotationTone } from './components/AnnotationTag';
+
+export { WorktreeCard } from './components/WorktreeCard';
+export type {
+  WorktreeCardProps,
+  WorktreeCardMarcoProps,
+  WorktreeCardOrquestradorProps,
+  WorktreeCardPhaseNode,
+  WorktreeCardAnnotation,
+} from './components/WorktreeCard';
+
+export { ArmedPrompt } from './components/ArmedPrompt';
+export type { ArmedPromptProps, ArmedPromptWarning } from './components/ArmedPrompt';

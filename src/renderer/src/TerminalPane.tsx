@@ -433,6 +433,12 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       });
 
       if (action.kind === 'passthrough') return true;
+      // FIX (teste manual 27/07, "Ctrl+V cola duas vezes") — devolver `false`
+      // cancela a tradução do XTERM, mas não o default do CHROMIUM: o keydown
+      // seguia vivo, o textarea oculto do xterm recebia o evento 'paste'
+      // nativo e o xterm colava DE NOVO por cima da nossa colagem async.
+      // preventDefault mata o caminho nativo; a nossa ação vira a única.
+      event.preventDefault();
       if (action.kind === 'noop') return false; // C1/CA-2 — Ctrl+C sem seleção em aba claude: nunca `\x03`.
 
       if (action.kind === 'copySelection') {

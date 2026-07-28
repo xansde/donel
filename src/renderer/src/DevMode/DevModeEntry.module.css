@@ -1,0 +1,86 @@
+/* T311 (003-modo-dev) — Zona 1. Só tokens existentes (design-system.md);
+   nenhum hex novo, nenhuma peça visual nova (CA-25). */
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 0;
+  padding: var(--panel-padding);
+  background: var(--bg-panel);
+  border-right: var(--hairline);
+  overflow-y: auto;
+  /* Âncora de coluna do grid do .body — ver comentário em App.module.css
+     (.center): desmontar um painel não pode deslocar os outros. */
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+
+.title {
+  font-size: var(--text-heading-size);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.hint {
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  list-style: none;
+  min-height: 0;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+
+.rowButton {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-half);
+  width: 100%;
+  height: auto;
+  min-height: var(--control-height);
+  text-align: left;
+}
+
+.rowTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-half);
+}
+
+.cardId {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardTitle {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}

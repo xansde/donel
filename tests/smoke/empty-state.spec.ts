@@ -179,24 +179,22 @@ test('CTA "Nova sessão" do empty state abre o Launcher (sem projeto/lastLaunch,
   // rodada 6 ciclo 2, medido em ~900ms de execução real).
   //
   // FIX (auditoria rodada 6 ciclo 2) — prova real de liveness em vez do hint
-  // como proxy: espera "accept edits on" aparecer no BUFFER do terminal
-  // (mesmo sinal que terminal.spec.ts usa pro CA-6, linha ~318-320) — texto
-  // que só aparece depois que o CLI passou de qualquer banner/diálogo
-  // inicial e está de fato pronto pra receber teclas. Se a sessão tivesse
-  // ficado presa no "Quick safety check" (o cenário do bug original), esse
-  // texto NUNCA apareceria e o `toPass` estouraria o timeout com FALHA real
-  // — ao contrário do hint, que passava de qualquer jeito.
+  // da toolbar como proxy: espera "accept edits on" aparecer no BUFFER do
+  // terminal (mesmo sinal que terminal.spec.ts usa pro CA-6, linha ~318-320)
+  // — texto que só aparece depois que o CLI passou de qualquer banner/
+  // diálogo inicial e está de fato pronto pra receber teclas. Se a sessão
+  // tivesse ficado presa no "Quick safety check" (o cenário do bug
+  // original), esse texto NUNCA apareceria e o `toPass` estouraria o timeout
+  // com FALHA real.
+  //
+  // FIX (teste manual 27/07) — a asserção adicional que havia aqui contra
+  // `[data-testid="session-details-hint"]` foi REMOVIDA: era o hint da
+  // toolbar SessionDetails, que saiu dos dois modos e não é mais montada em
+  // lugar nenhum do App.tsx (o testid não existe mais na árvore renderizada
+  // — só sobrevive no arquivo morto SessionDetails.tsx). A prova de liveness
+  // acima ("accept edits on" no buffer) já era a prova REAL; o hint era só
+  // confirmação redundante.
   await expect(async () => {
     expect(await terminalPane.innerText()).toContain('accept edits on');
   }).toPass({ timeout: 60_000 });
-
-  // Com a liveness real provada acima, o hint da toolbar como confirmação
-  // adicional (não mais a única prova) — `donel-dev` já é confiável nesta
-  // máquina, então o texto esperado é o de sessão pronta (toolbar
-  // Modelo/Esforço segue desabilitada por design até o primeiro turno,
-  // FR-011 — não mandamos nenhum prompt aqui, custo de cota; ver
-  // `tests/possiblyBlockedOnPrompt.test.ts` pra cobertura de unidade dos
-  // dois sentidos dessa decisão).
-  const hint = window.locator('[data-testid="session-details-hint"]');
-  await expect(hint).toHaveText('Sessão pronta — digite no terminal; modelo/esforço liberam após o primeiro turno.');
 });

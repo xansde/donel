@@ -5,9 +5,25 @@ import type { ElectronApplication, Page } from '@playwright/test';
 import { APP_MAIN, PROJECT_NAME, REPO_ROOT, SESSIONS_DIR } from './repoUnderTest';
 import { createIsolatedUserDataDir, removeIsolatedUserDataDir } from './userDataIsolation';
 
-// Smoke da Fase C da 006 (T611/T612) — o `%` de contexto consumido aparece na
-// toolbar POR ABA, atualiza sozinho quando o transcript recebe um turno novo, e
-// muda de estado acima de 100% da smart zone (CA-1, CA-5, CA-8, CA-9).
+// Smoke da Fase C da 006 (T611/T612), ADAPTADO no teste manual de 27/07
+// (commit 40c202c): a toolbar SessionDetails (que mostrava o `%` de contexto
+// POR ABA, com estado de alerta acima de 100% da smart zone) saiu dos dois
+// modos — "não tem sido nem um pouco útil". O MECANISMO por trás (T610,
+// transcript-watcher lendo `message.usage` do `.jsonl`) continua 100% vivo;
+// só a SUPERFÍCIE mudou: agora é a StatusBar (rodapé), GLOBAL para a aba em
+// foco (não mais por-aba-na-toolbar), e mostra tokens BRUTOS arredondados em
+// milhares — `"<model>/<effort> · ctx Nk"` — sem `%`, sem denominador de
+// zona, sem estado de alerta visual (App.tsx `activeModelEffort`/
+// `activeContextTokens`).
+//
+// NÃO ADAPTÁVEL sem mexer em src/ (reportado, não implementado aqui): a
+// matemática de `%` relativa à smart zone (CA-6/CA-7), o estado "acima de
+// 100%" (CA-8/CA-9, `data-over-zone`) e o tooltip com o denominador da janela
+// não têm mais NENHUMA representação na árvore renderizada — só existem no
+// arquivo morto `SessionDetails.tsx` (nunca montado). Cobertura que
+// permanece válida sem tocar produção: `tests/contextWindow.test.ts` (a
+// matemática pura de `%`/zona, que continua correta mesmo sem consumidor de
+// UI) e o roteiro E2E humano (T614) para o que só um humano pode julgar.
 //
 // Custo: uma sessão `claude` REAL é aberta (o watcher só existe para abas
 // claude), mas **nenhum turno de API é consumido** — nada é digitado no prompt.
@@ -20,12 +36,6 @@ import { createIsolatedUserDataDir, removeIsolatedUserDataDir } from './userData
 // O truque para descobrir o `sessionId` da sessão VIVA sem API nova é o mesmo do
 // `session-rename-live.spec.ts`: renomear pela UI faz o `main` persistir o nome
 // sob a chave `sessionId`.
-//
-// FORA DESTE SMOKE, de propósito: CA-6 (trocar o modelo recalcula o `%`). Os
-// controles da toolbar só habilitam com o semáforo em `waiting`, o que exige um
-// turno real do modelo — a prova de CA-6 está no unit puro
-// (`tests/contextWindow.test.ts`: os mesmos 134.602 tokens dão 45% em opus e 67%
-// em haiku) e o passo com sessão viva fica no roteiro E2E humano (T614).
 
 // T801/§B19 (008) — `APP_MAIN`/`PROJECT_NAME`/`REPO_ROOT`/`SESSIONS_DIR` vêm de `repoUnderTest.ts`: o nome do projeto na
 // sidebar é o `basename` da PASTA (numa worktree, `donel-dev-wt-x`), e sai da
@@ -78,7 +88,7 @@ test.afterAll(async () => {
   }
 });
 
-test('T611/T612 — o % de contexto aparece na toolbar da aba, atualiza com o turno novo e vira alerta acima de 100%', async () => {
+test('T611/T612 (adaptado 27/07) — a StatusBar mostra "ctx Nk" pra aba em foco, atualiza ao vivo com o turno novo e cai quando o turno fica menor (não é acumulado)', async () => {
   test.setTimeout(180_000);
 
   // Só faz sentido com o perfil Principal ativo: com outro perfil o CLI grava o
@@ -103,18 +113,16 @@ test('T611/T612 — o % de contexto aparece na toolbar da aba, atualiza com o tu
     expect(text).not.toContain('Falha ao iniciar');
   }).toPass({ timeout: 30_000 });
 
-  // 2. CA-4: sessão recém-nascida, sem nenhum turno → `—`, nunca `0%`.
-  const indicator = appWindow.locator('[data-testid="session-context"]');
-  await expect(indicator).toHaveText('contexto —');
-  await expect(indicator).not.toHaveAttribute('data-over-zone', 'true');
-
-  // O denominador depende do modelo ativo da aba: com `userData` isolado, o
-  // default do Brief 3 é `fable` (janela 1M → zona de 300k). A asserção fica
-  // explícita para o teste falhar com diagnóstico, e não com um número errado,
-  // se esse default mudar.
-  const modelGroup = appWindow.getByRole('radiogroup', { name: 'Modelo (sessão viva)' });
-  const activeModel = (await modelGroup.locator('[role="radio"][aria-checked="true"]').innerText()).trim();
-  expect(['fable', 'opus', 'sonnet'], `modelo ativo ${activeModel} tem zona diferente de 300k`).toContain(activeModel);
+  // 2. CA-4 (adaptado) — sessão recém-nascida, sem nenhum turno → a StatusBar
+  // mostra modelo/esforço da aba (tem "/"), mas NUNCA o sufixo "· ctx Nk"
+  // sem uma leitura real do transcript-watcher (App.tsx `activeContextTokens`
+  // nasce `null`, filtrado do array antes do `.join(' · ')`). Sem testid
+  // próprio pro span de modelo/esforço (design-system só expõe `accountTestId`,
+  // ver StatusBar.tsx) — o container inteiro (`div:has(> ...)`) é o locator
+  // estável disponível.
+  const statusBar = appWindow.locator('div:has(> [data-testid="statusbar-account"])');
+  await expect(statusBar).toContainText('/');
+  await expect(statusBar).not.toContainText('ctx ');
 
   // 3. Descobre o `sessionId` da sessão viva renomeando pela UI (o main persiste
   //    sob essa chave) — nenhuma API de teste nova.
@@ -137,24 +145,21 @@ test('T611/T612 — o % de contexto aparece na toolbar da aba, atualiza com o tu
     createdTranscriptPath = transcriptPath;
   }
 
-  // 4. Turno novo dentro da zona: 290 + 132.807 + 1.505 = 134.602 → 45% de 300k.
+  // 4. Turno novo: 290 + 132.807 + 1.505 = 134.602 tokens brutos → arredonda
+  // pra "ctx 135k" (Math.round(134602 / 1000), App.tsx `activeModelEffort`).
+  // Sem `%`/zona: o número agora é absoluto, não depende mais do modelo ativo.
   appendFileSync(transcriptPath, usageLine(290, 132_807, 1_505), 'utf8');
-  await expect(indicator).toHaveText('contexto 45%', { timeout: 5_000 });
-  await expect(indicator).not.toHaveAttribute('data-over-zone', 'true');
+  await expect(statusBar).toContainText('ctx 135k', { timeout: 5_000 });
 
-  // CA-7: o tooltip mostra a zona usada como denominador E a janela real.
-  const tooltip = await indicator.getAttribute('title');
-  expect(tooltip).toContain('134.602 / 300.000 tokens da smart zone');
-  expect(tooltip).toContain(`janela ${activeModel} 1.000.000`);
-
-  // 5. CA-8/CA-9: turno que passa da smart zone → 127% (sem teto) e estado de
-  //    alerta. 380.000 = 300.000 + 60.000 + 20.000.
+  // 5. Turno maior — 380.000 = 300.000 + 60.000 + 20.000 → "ctx 380k". (O
+  // antigo CA-8/CA-9, "estado de alerta acima de 100% da smart zone", NÃO
+  // TEM equivalente aqui — sem `%`/zona não há "acima de 100%" pra alertar;
+  // ver cabeçalho do arquivo, "NÃO ADAPTÁVEL sem mexer em src/".)
   appendFileSync(transcriptPath, usageLine(300_000, 60_000, 20_000), 'utf8');
-  await expect(indicator).toHaveText('contexto 127%', { timeout: 5_000 });
-  await expect(indicator).toHaveAttribute('data-over-zone', 'true');
+  await expect(statusBar).toContainText('ctx 380k', { timeout: 5_000 });
 
   // 6. C1: o número é o contexto AGORA, não acumulado — um turno menor (o que um
-  //    `/compact` produz) faz o `%` CAIR e o alerta sair.
+  //    `/compact` produz) faz o valor CAIR: 150 + 20.000 + 0 = 20.150 → "ctx 20k".
   appendFileSync(transcriptPath, usageLine(150, 20_000, 0), 'utf8');
   // Timeout maior que os anteriores por um motivo MEDIDO, não por superstição:
   // na primeira execução deste smoke este passo ficou 5 s inteiros exibindo o
@@ -163,8 +168,7 @@ test('T611/T612 — o % de contexto aparece na toolbar da aba, atualiza com o tu
   // nada depois para "consertá-lo"); numa sessão real o CLI escreve várias
   // linhas por turno, então o próximo evento chega em seguida. Registrado como
   // dívida nomeada em `specs/backlog.md` §B15.
-  await expect(indicator).toHaveText('contexto 7%', { timeout: 20_000 });
-  await expect(indicator).not.toHaveAttribute('data-over-zone', 'true');
+  await expect(statusBar).toContainText('ctx 20k', { timeout: 20_000 });
 
   // 7. Fecha a aba (mata o PTY e o watcher) — não deixa sujeira para os outros.
   await tab.getByRole('button', { name: new RegExp(`^Fechar aba ${uiName}`) }).click();
@@ -175,15 +179,22 @@ test('T611/T612 — o % de contexto aparece na toolbar da aba, atualiza com o tu
   await expect(appWindow.locator('[role="tab"]')).toHaveCount(0);
 });
 
-test('aba de terminal livre (shell) não mostra indicador de contexto (CA-4/CA-5)', async () => {
+test('aba de terminal livre (shell) não mostra modelo/esforço nem ctx no rodapé (CA-4/CA-5 adaptado — a toolbar por-aba foi removida, a leitura agora é a StatusBar global)', async () => {
   test.setTimeout(60_000);
 
-  // A toolbar inteira só existe para abas `claude` — em shell não há nem
-  // modelo/esforço nem contexto. É a prova de que o indicador é por-sessão.
+  // FIX (teste manual 27/07) — `[data-testid="session-details"]`/
+  // `[data-testid="session-context"]` não existem mais em NENHUMA aba
+  // (SessionDetails.tsx não é mais montada nem para sessões claude — ver
+  // cabeçalho do arquivo), então `toHaveCount(0)` contra esses testids
+  // deixou de provar algo específico de shell. A prova equivalente agora é
+  // no rodapé global: só sessões `claude` alimentam `activeModelEffort`
+  // (App.tsx) — uma aba shell em foco não deve mostrar nem o segmento
+  // "modelo/esforço" (sinalizado pela presença de "/") nem "ctx".
   await appWindow.getByRole('button', { name: 'Mais opções de ＋ Nova sessão' }).click();
   await appWindow.getByRole('menuitem', { name: 'Terminal' }).click();
 
   await expect(appWindow.locator('[role="tab"]')).toHaveCount(1);
-  await expect(appWindow.locator('[data-testid="session-details"]')).toHaveCount(0);
-  await expect(appWindow.locator('[data-testid="session-context"]')).toHaveCount(0);
+  const statusBar = appWindow.locator('div:has(> [data-testid="statusbar-account"])');
+  await expect(statusBar).not.toContainText('ctx ');
+  await expect(statusBar).not.toContainText('/');
 });

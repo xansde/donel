@@ -1,9 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type {
   AppConfigDto,
+  ArchivePhaseSessionIpcInput,
+  BoardFacts,
+  DiscoveryTree,
   DonelApi,
+  EntryColumnCard,
   LauncherDefaultsDto,
   NotificationPreference,
+  OpenDiscoveryIpcInput,
+  PhaseArchivedPayload,
+  PhaseDefaultsTable,
   ProfileDoctorReportDto,
   ProfileHeadroomMap,
   ProfileSummaryDto,
@@ -15,9 +22,11 @@ import type {
   SemaphoreUpdate,
   SessionSummaryDto,
   TranscriptChangedPayload,
+  WatchPhaseIpcInput,
 } from '../shared';
 import {
   CONFIG_CHANNELS,
+  DEVMODE_CHANNELS,
   PROFILE_CHANNELS,
   PROJECT_CHANNELS,
   PTY_CHANNELS,
@@ -164,6 +173,48 @@ const donelApi: DonelApi = {
     readText: () => ipcRenderer.invoke(CLIPBOARD_CHANNELS.readText) as Promise<string>,
 
     writeText: (text: string) => ipcRenderer.invoke(CLIPBOARD_CHANNELS.writeText, text) as Promise<void>,
+  },
+
+  // T307 (003-modo-dev) — estado do Modo Dev (CA-21/CA-4) + leitura da árvore
+  // do discovery (CA-7). Nenhum canal aqui escreve no TaskDex/vault.
+  devMode: {
+    get: () => ipcRenderer.invoke(DEVMODE_CHANNELS.get) as Promise<AppConfigDto>,
+
+    openDiscovery: (input: OpenDiscoveryIpcInput) => ipcRenderer.invoke(DEVMODE_CHANNELS.openDiscovery, input) as Promise<AppConfigDto>,
+
+    focusDiscovery: (cardId: string) => ipcRenderer.invoke(DEVMODE_CHANNELS.focusDiscovery, cardId) as Promise<AppConfigDto>,
+
+    closeDiscovery: (cardId: string) => ipcRenderer.invoke(DEVMODE_CHANNELS.closeDiscovery, cardId) as Promise<AppConfigDto>,
+
+    archivePhaseSession: (input: ArchivePhaseSessionIpcInput) =>
+      ipcRenderer.invoke(DEVMODE_CHANNELS.archivePhaseSession, input) as Promise<AppConfigDto>,
+
+    getDefaults: () => ipcRenderer.invoke(DEVMODE_CHANNELS.getDefaults) as Promise<AppConfigDto>,
+
+    setDefaults: (defaults: PhaseDefaultsTable) => ipcRenderer.invoke(DEVMODE_CHANNELS.setDefaults, defaults) as Promise<AppConfigDto>,
+
+    readTree: (cardId: string) => ipcRenderer.invoke(DEVMODE_CHANNELS.readTree, cardId) as Promise<DiscoveryTree>,
+
+    // T311 (Batch B) — CA-1: consulta restrita da porta de entrada.
+    listEntryCards: () => ipcRenderer.invoke(DEVMODE_CHANNELS.listEntryCards) as Promise<readonly EntryColumnCard[]>,
+
+    // T327 (Batch D) — CA-12: os 4 fatos do board para os cards do discovery
+    // em foco. Leitura pura — não existe canal simétrico de escrita.
+    readBoardFacts: (cardIds: readonly string[]) =>
+      ipcRenderer.invoke(DEVMODE_CHANNELS.readBoardFacts, cardIds) as Promise<Record<string, BoardFacts>>,
+
+    // T315 (Batch B) — CA-6: watcher do manifesto por etapa + push do evento.
+    watchPhase: (input: WatchPhaseIpcInput) => ipcRenderer.invoke(DEVMODE_CHANNELS.watchPhase, input) as Promise<void>,
+
+    unwatchPhase: (input: WatchPhaseIpcInput) => ipcRenderer.invoke(DEVMODE_CHANNELS.unwatchPhase, input) as Promise<void>,
+
+    onPhaseArchived: (listener: (payload: PhaseArchivedPayload) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: PhaseArchivedPayload): void => {
+        listener(payload);
+      };
+      ipcRenderer.on(DEVMODE_CHANNELS.phaseArchived, handler);
+      return () => ipcRenderer.removeListener(DEVMODE_CHANNELS.phaseArchived, handler);
+    },
   },
 };
 

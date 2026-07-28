@@ -125,3 +125,45 @@ test('aba shell: Ctrl+C sem seleção mata um processo real em execução (CA-6,
   await window.waitForTimeout(2_000);
   expect(await terminalPane.innerText()).toBe(stableText);
 });
+
+// FIX (teste manual 27/07, "Ctrl+V cola duas vezes") — a nossa colagem
+// (clipboard bridge → pty.input) convivia com o paste NATIVO do Chromium no
+// textarea oculto do xterm (o keydown não recebia preventDefault), e o texto
+// entrava em dobro. Este teste asserta ocorrência ÚNICA — `toContain` não
+// pega dobra ("XX" contém "X"); contagem pega.
+test('aba shell: Ctrl+V cola o texto do clipboard UMA única vez', async () => {
+  test.setTimeout(60_000);
+
+  await window.getByRole('button', { name: 'Mais opções de ＋ Nova sessão' }).click();
+  await window.getByRole('menuitem', { name: 'Terminal (shell livre)' }).click();
+
+  const panes = window.locator('[data-testid="terminal-pane"]');
+  const terminalPane = panes.last();
+  await expect(terminalPane).toBeVisible();
+
+  await expect(async () => {
+    const text = await terminalPane.innerText();
+    expect(text.length).toBeGreaterThan(0);
+  }).toPass({ timeout: 15_000 });
+
+  // Marcador único desta execução, escrito no clipboard REAL do Electron
+  // (processo main) — mesmo clipboard que o bridge lê.
+  const marker = `PASTE-UMA-VEZ-${Date.now().toString(36)}`;
+  await electronApp.evaluate(({ clipboard }, text) => clipboard.writeText(text), marker);
+
+  await terminalPane.click();
+  await window.keyboard.press('Control+V');
+
+  // O marcador precisa aparecer (a colagem aconteceu)...
+  await expect(async () => {
+    expect(await terminalPane.innerText()).toContain(marker);
+  }).toPass({ timeout: 10_000 });
+
+  // ...e depois de estabilizar, EXATAMENTE uma vez (a dobra aparecia como
+  // "markermarker" na mesma linha ou em linhas seguidas — qualquer segunda
+  // ocorrência falha a contagem).
+  await window.waitForTimeout(1_500);
+  const text = await terminalPane.innerText();
+  const occurrences = text.split(marker).length - 1;
+  expect(occurrences).toBe(1);
+});

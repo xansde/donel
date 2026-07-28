@@ -16,6 +16,7 @@ import {
   type ConfigIoDeps,
   type LegacyConfigPaths,
 } from '../src/main/config-store';
+import { DEFAULT_PHASE_DEFAULTS } from '../src/shared/devModeDefaults';
 import { upsertVisit } from '../src/shared/sessionRegistry';
 
 // T015 — ConfigStore (FR-007). TDD nos módulos puros: escrita atômica (fs
@@ -44,6 +45,13 @@ describe('defaultAppConfig (puro)', () => {
       theme: 'dark',
       sessionRegistry: {},
       collapsedFavorites: [],
+      devMode: {
+        discoveries: {},
+        focusedDiscoveryId: null,
+        archivedPhaseSessions: {},
+        phaseDefaults: DEFAULT_PHASE_DEFAULTS,
+        boardConfig: null,
+      },
     });
   });
 });
@@ -63,6 +71,13 @@ describe('toAppConfigDto (puro)', () => {
       theme: 'dark',
       sessionRegistry: {},
       collapsedFavorites: [],
+      devMode: {
+        discoveries: {},
+        focusedDiscoveryId: null,
+        archivedPhaseSessions: {},
+        phaseDefaults: DEFAULT_PHASE_DEFAULTS,
+        boardConfig: null,
+      },
     });
   });
 
@@ -161,6 +176,13 @@ describe('sanitizeAppConfig (puro — validação de schema)', () => {
         'sess-1': { sessionId: 'sess-1', projectPath: 'C:\\x', label: 'Trabalhando', lastActivityAt: 1000, pinned: true },
       },
       collapsedFavorites: ['C:\\x'],
+      devMode: {
+        discoveries: { 'card-1': { cardId: 'card-1', repoPath: 'C:\\repo', epicId: 'epic-1', openedAt: 100, closedAt: null } },
+        focusedDiscoveryId: 'card-1',
+        archivedPhaseSessions: { 'card-1:M1:plano': { sessionId: 'sess-1', profileSlug: 'principal', archivedAt: 100 } },
+        phaseDefaults: DEFAULT_PHASE_DEFAULTS,
+        boardConfig: { workspaceId: 'ws-1', teamId: 'team-1' },
+      },
     };
     expect(sanitizeAppConfig(valid, baseDefaults())).toEqual(valid);
   });
@@ -195,6 +217,7 @@ describe('sanitizeAppConfig (puro — validação de schema)', () => {
       theme: 'dark',
       sessionRegistry: {}, // ausente no objeto → default
       collapsedFavorites: [], // ausente no objeto → default
+      devMode: defaults.devMode, // ausente no objeto → default
     });
   });
 
@@ -618,5 +641,148 @@ describe('readAppConfig / writeAppConfig — I/O real em pasta temporária (inte
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(filePath, '{ não é json válido', 'utf8');
     expect(readAppConfig(filePath, baseDefaults(), legacy, io)).toEqual(baseDefaults());
+  });
+
+  // T306 (003-modo-dev, Batch A) — devMode sobrevive ao round-trip real em
+  // disco, incluindo config LEGADO (sem a chave) e uma entrada malformada
+  // isolada não derrubando as demais (mesma armadilha da 007/T704).
+  it('devMode sobrevive ao round-trip em disco', () => {
+    const config: AppConfig = {
+      ...baseDefaults(),
+      devMode: {
+        discoveries: { 'card-1': { cardId: 'card-1', repoPath: 'C:\\repo', epicId: null, openedAt: 100, closedAt: null } },
+        focusedDiscoveryId: 'card-1',
+        archivedPhaseSessions: { 'card-1:M1:plano': { sessionId: 'sess-1', profileSlug: 'principal', archivedAt: 200 } },
+        phaseDefaults: DEFAULT_PHASE_DEFAULTS,
+        boardConfig: { workspaceId: 'ws-1', teamId: 'team-1' },
+      },
+    };
+    writeAppConfig(filePath, config, io);
+
+    const reread = readAppConfig(filePath, baseDefaults(), legacy, io);
+    expect(reread.devMode).toEqual(config.devMode);
+  });
+
+  it('config.json LEGADO real no disco (sem a chave devMode) relê com os defaults e mantém o resto', () => {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        projectRoots: ['C:\\meu\\root'],
+        favorites: [],
+        activeProfileSlug: 'principal',
+        launcherDefaults: { model: 'fable', effort: 'high', permissionMode: 'acceptEdits' },
+        notificationPreference: 'permission-only',
+        sessionNames: {},
+        theme: 'dark',
+        sessionRegistry: {},
+        collapsedFavorites: [],
+        // sem `devMode` — config gravada por uma versão anterior a esta feature.
+      }),
+      'utf8',
+    );
+
+    const loaded = readAppConfig(filePath, baseDefaults(), legacy, io);
+    expect(loaded.devMode).toEqual(baseDefaults().devMode);
+    expect(loaded.projectRoots).toEqual(['C:\\meu\\root']);
+  });
+});
+
+describe('sanitizeAppConfig — devMode (T306)', () => {
+  it('discovery malformado (sem repoPath) é descartado isolado, preservando os demais', () => {
+    const parsed = {
+      devMode: {
+        discoveries: {
+          'card-1': { cardId: 'card-1', repoPath: 'C:\\repo', epicId: null, openedAt: 100, closedAt: null },
+          'card-2': { cardId: 'card-2', epicId: null, openedAt: 100, closedAt: null }, // sem repoPath
+        },
+        focusedDiscoveryId: null,
+        archivedPhaseSessions: {},
+        phaseDefaults: DEFAULT_PHASE_DEFAULTS,
+        boardConfig: null,
+      },
+    };
+
+    const sanitized = sanitizeAppConfig(parsed, baseDefaults());
+    expect(Object.keys(sanitized.devMode.discoveries)).toEqual(['card-1']);
+  });
+
+  it('phaseDefaults malformado cai no DEFAULT_PHASE_DEFAULTS inteiro (não mistura fase boa com fase quebrada)', () => {
+    const parsed = {
+      devMode: {
+        discoveries: {},
+        focusedDiscoveryId: null,
+        archivedPhaseSessions: {},
+        phaseDefaults: {
+          ...DEFAULT_PHASE_DEFAULTS,
+          validar: { ...DEFAULT_PHASE_DEFAULTS.validar, model: 'modelo-inventado' },
+        },
+        boardConfig: null,
+      },
+    };
+
+    const sanitized = sanitizeAppConfig(parsed, baseDefaults());
+    expect(sanitized.devMode.phaseDefaults).toEqual(DEFAULT_PHASE_DEFAULTS);
+  });
+
+  it('phaseDefaults faltando uma fase inteira cai no DEFAULT_PHASE_DEFAULTS inteiro', () => {
+    const { concluir: _concluir, ...withoutConcluir } = DEFAULT_PHASE_DEFAULTS;
+    const parsed = {
+      devMode: {
+        discoveries: {},
+        focusedDiscoveryId: null,
+        archivedPhaseSessions: {},
+        phaseDefaults: withoutConcluir,
+        boardConfig: null,
+      },
+    };
+
+    const sanitized = sanitizeAppConfig(parsed, baseDefaults());
+    expect(sanitized.devMode.phaseDefaults).toEqual(DEFAULT_PHASE_DEFAULTS);
+  });
+
+  it('archivedPhaseSessions descarta entrada malformada (sessionId vazio) isolada', () => {
+    const parsed = {
+      devMode: {
+        discoveries: {},
+        focusedDiscoveryId: null,
+        archivedPhaseSessions: {
+          'card-1:M1:plano': { sessionId: 'sess-1', profileSlug: 'principal', archivedAt: 100 },
+          'card-1:M1:validar': { sessionId: '', profileSlug: 'principal', archivedAt: 200 },
+        },
+        phaseDefaults: DEFAULT_PHASE_DEFAULTS,
+        boardConfig: null,
+      },
+    };
+
+    const sanitized = sanitizeAppConfig(parsed, baseDefaults());
+    expect(Object.keys(sanitized.devMode.archivedPhaseSessions)).toEqual(['card-1:M1:plano']);
+  });
+
+  it('boardConfig malformado (sem teamId) cai em null', () => {
+    const parsed = { devMode: { ...baseDefaults().devMode, boardConfig: { workspaceId: 'ws-1' } } };
+    const sanitized = sanitizeAppConfig(parsed, baseDefaults());
+    expect(sanitized.devMode.boardConfig).toBeNull();
+  });
+
+  it('focusedDiscoveryId apontando para um discovery que não sobreviveu ao sanitize vira null', () => {
+    const parsed = {
+      devMode: {
+        discoveries: { 'card-2': { cardId: 'card-2', epicId: null, openedAt: 100, closedAt: null } }, // sem repoPath, será descartado
+        focusedDiscoveryId: 'card-2',
+        archivedPhaseSessions: {},
+        phaseDefaults: DEFAULT_PHASE_DEFAULTS,
+        boardConfig: null,
+      },
+    };
+
+    const sanitized = sanitizeAppConfig(parsed, baseDefaults());
+    expect(sanitized.devMode.focusedDiscoveryId).toBeNull();
+  });
+
+  it('devMode ausente inteiro cai no default inteiro (config legado)', () => {
+    const sanitized = sanitizeAppConfig({}, baseDefaults());
+    expect(sanitized.devMode).toEqual(baseDefaults().devMode);
   });
 });

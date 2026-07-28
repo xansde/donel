@@ -1,0 +1,131 @@
+/* T316/T317/T318 (003-modo-dev) — Zona 3. Só tokens existentes. */
+
+.map {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: var(--panel-padding);
+  background: var(--bg-panel);
+  border-left: var(--hairline);
+  overflow-y: auto;
+  /* Âncora de coluna do grid do .body — ver comentário em App.module.css
+     (.center): desmontar um painel não pode deslocar os outros. */
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.marcos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.marco {
+  opacity: 0.7;
+}
+
+/* Marco EM FOCO destacado (CA-7) — o vizinho fica legível, só recuado. */
+.marcoFocused {
+  opacity: 1;
+  outline: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+}
+
+.empty {
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  padding: var(--space-1);
+  background: var(--bg-raised);
+  border: var(--hairline);
+  border-radius: var(--radius-md);
+}
+
+.detailsHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-half);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.detailsTitle {
+  margin-top: var(--space-1);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  list-style: none;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+.warning {
+  font-size: var(--text-caption-size);
+  color: var(--state-waiting);
+}
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  margin-top: auto;
+  padding-top: var(--space-1);
+  border-top: var(--hairline);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+.legendRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.legendTitle {
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-half);
+}
+
+/* T328 — bloco de divergência disco × board (CA-13). Só tokens existentes. */
+.divergence {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-half);
+  padding: var(--space-1);
+  background: var(--bg-panel);
+  border: 1px solid var(--state-error);
+  border-radius: var(--radius-md);
+  font-size: var(--text-caption-size);
+  color: var(--text-primary);
+}

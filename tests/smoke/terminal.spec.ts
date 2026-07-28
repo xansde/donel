@@ -50,14 +50,13 @@ test.beforeAll(async () => {
   await window.waitForLoadState('domcontentloaded');
 });
 
-// FIX (feedback E2E rodada 3, "painel lateral 'Lançar sessão' fixo rouba
-// espaço") — o Launcher deixou de ser um painel fixo: nasce fechado, abre
-// via item "Sessão Claude" do menu do "＋ Nova sessão" (App.tsx,
-// `launcherOpen`). Testes que interagem direto com `[data-testid="launcher"]`
-// precisam abrir o painel primeiro.
+// FIX (teste manual 27/07) — o corpo do "＋ Nova sessão" passou a ABRIR o
+// Launcher direto (App.tsx, `launcherOpen`), em vez do quick-launch cego; o
+// antigo item de menu "Sessão Claude" foi removido do dropdown (o
+// quick-launch virou "Rápida (última config)"). Testes que interagem direto
+// com `[data-testid="launcher"]` só precisam clicar no corpo do botão.
 async function openLauncherPanel(): Promise<void> {
-  await window.getByRole('button', { name: 'Mais opções de ＋ Nova sessão' }).click();
-  await window.getByRole('menuitem', { name: 'Sessão Claude' }).click();
+  await window.getByRole('button', { name: '＋ Nova sessão', exact: true }).click();
   await expect(window.locator('[data-testid="launcher"]')).toBeVisible();
 }
 
@@ -93,12 +92,15 @@ test('terminal spawns a real claude session inside Electron', async () => {
   // FIX (auditoria rodada 6 ciclo 2, achado media "CTA do titlebar reproduz
   // o bug do empty state em 1 clique") — esse cenário (`cwd: undefined` ->
   // `os.homedir()` -> "Quick safety check" preso) deixou de ser alcançável
-  // por QUALQUER caminho da UI: o guard que antes só protegia o CTA do empty
-  // state agora vive dentro do próprio `handleQuickNewClaudeSession`
-  // (App.tsx), compartilhado pelo corpo do "＋ Nova sessão" do titlebar. Sem
-  // `lastLaunch`/`selectedProjectPath` (exatamente o estado deste teste — é
-  // a PRIMEIRA aba de toda a suíte), o clique abre o Launcher em vez de
-  // spawnar direto. Escolhe `ai-rats` (repo real sob `~/seazone`, não
+  // por QUALQUER caminho da UI.
+  //
+  // FIX (teste manual 27/07) — o corpo do "＋ Nova sessão" agora abre o
+  // Launcher SEMPRE (App.tsx, `onClick={() => setLauncherOpen(true)}`), não
+  // mais condicionado a `lastLaunch`/`selectedProjectPath` (o guard que
+  // existia dentro de `handleQuickNewClaudeSession` só se aplica ao
+  // quick-launch, agora item "Rápida (última config)" do dropdown). Este
+  // teste continua provando o mesmo cenário (1ª aba de toda a suíte, sem
+  // lançamento anterior) — escolhe `ai-rats` (repo real sob `~/seazone`, não
   // `donel-dev`) DE PROPÓSITO — `donel-dev` fica reservado pro teste
   // seguinte (T007, abaixo), que precisa abrir esse projeto pela SIDEBAR
   // pela primeira vez nesta run pra provar que a sidebar cria uma aba NOVA

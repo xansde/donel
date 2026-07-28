@@ -116,12 +116,15 @@ test('T014 — criar perfil, doctor verde, listar no dropdown, ativar e spawnar 
   // FIX (auditoria rodada 6 ciclo 2, achado media "CTA do titlebar reproduz
   // o bug do empty state em 1 clique") — sem `lastLaunch`/
   // `selectedProjectPath` (boot limpo, primeiro clique de toda a suíte), o
-  // clique agora abre o Launcher (guard movido pra dentro de
-  // `handleQuickNewClaudeSession`) em vez de spawnar direto em home — escolhe
-  // `donel-dev` (já confiável nesta máquina). Isso também grava `lastLaunch`,
-  // então o clique do passo 5 mais abaixo (mesmo corpo do "＋ Nova sessão")
-  // volta a spawnar direto com essa config, sem reabrir o Launcher — nenhuma
-  // mudança necessária lá.
+  // clique abre o Launcher (nesta altura, o único jeito de escolher um
+  // projeto) — escolhe `donel-dev` (já confiável nesta máquina). Isso também
+  // grava `lastLaunch` via `handleLaunch`.
+  //
+  // FIX (teste manual 27/07) — o corpo do "＋ Nova sessão" passou a abrir o
+  // Launcher SEMPRE, não mais só na ausência de `lastLaunch`. O clique do
+  // passo 5 mais abaixo (que antes reaproveitava o mesmo corpo pra spawnar
+  // direto com `lastLaunch`) foi trocado pro item "Rápida (última config)"
+  // do dropdown — esse sim continua indo direto, sem abrir o Launcher.
   await window.getByRole('button', { name: '＋ Nova sessão', exact: true }).click();
   const launcher = window.locator('[data-testid="launcher"]');
   await expect(launcher).toBeVisible();
@@ -205,12 +208,18 @@ test('T014 — criar perfil, doctor verde, listar no dropdown, ativar e spawnar 
   const statusbarAccount = window.locator('[data-testid="statusbar-account"]');
   await expect(statusbarAccount).toContainText('Sessão: Principal');
 
-  // 5. Spawna uma sessão claude nova (corpo do "＋ Nova sessão" — reaproveita
-  // o `lastLaunch` gravado no passo 0 acima, auditoria rodada 6 ciclo 2:
-  // não é mais "sem projeto/modelo específico", mas isso não importa pra
-  // esta prova — o que valida o isolamento (passo 6) é o estado de AUTH da
-  // sessão nova, independente de cwd/modelo).
-  await window.getByRole('button', { name: '＋ Nova sessão', exact: true }).click();
+  // 5. Spawna uma sessão claude nova reaproveitando o `lastLaunch` gravado no
+  // passo 0 acima — não é mais "sem projeto/modelo específico" (auditoria
+  // rodada 6 ciclo 2), mas isso não importa pra esta prova — o que valida o
+  // isolamento (passo 6) é o estado de AUTH da sessão nova, independente de
+  // cwd/modelo.
+  //
+  // FIX (teste manual 27/07) — o corpo do "＋ Nova sessão" agora SEMPRE abre
+  // o Launcher (não spawna mais direto mesmo com `lastLaunch` gravado); o
+  // atalho que reaproveita a última config virou o item "Rápida (última
+  // config)" do dropdown.
+  await window.getByRole('button', { name: 'Mais opções de ＋ Nova sessão' }).click();
+  await window.getByRole('menuitem', { name: 'Rápida (última config)' }).click();
 
   const newTab = window.locator('[role="tab"]').last();
   await expect(newTab).toBeVisible();

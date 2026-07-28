@@ -1,0 +1,58 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  line-height: 1;
+}
+
+.glyph {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+
+/* Contorno — não iniciada / em execução / concluída. */
+.not-started {
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.running {
+  color: var(--state-working);
+  background: transparent;
+  border: 1px solid var(--state-working);
+}
+
+.done {
+  color: var(--zone-ok);
+  background: transparent;
+  border: 1px solid var(--zone-ok);
+}
+
+/* Sólido — falhou / travada: a falha tem de ser a coisa mais clara da tela. */
+.failed {
+  color: var(--bg-app);
+  background: var(--state-permission);
+  border: 1px solid var(--state-permission);
+}
+
+.stuck {
+  color: var(--bg-app);
+  background: var(--state-error);
+  border: 1px solid var(--state-error);
+}
+
+.label {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+  white-space: nowrap;
+}

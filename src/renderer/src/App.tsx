@@ -1,9 +1,14 @@
-import { Button, Modal, SplitButton, StatusBar, TerminalTab } from '@donel-dev/design-system';
-import { Settings } from 'lucide-react';
+import { ArmedPrompt, Button, Modal, SplitButton, StatusBar, TerminalTab, Toast, Toggle } from '@donel-dev/design-system';
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Settings } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   AppConfigDto,
+  BoardFacts,
+  DiscoveryTree,
+  EntryColumnCard,
+  EsteiraPhase,
   NotificationPreference,
+  PhaseArchivedPayload,
   ProfileHeadroomMap,
   ProjectInfo,
   SemaphoreStateInfo,
@@ -16,14 +21,7 @@ import {
   parseModelEffortFromArgs,
 } from '../../shared/commandBuilder';
 import type { EffortLevel, ModelAlias } from '../../shared/commandBuilder';
-import {
-  buildEffortInjection,
-  buildModelInjection,
-  canInjectLiveCommand,
-  hasLiveInjectionConfirmation,
-} from '../../shared/liveSessionInjection';
 import { sortProjects } from '../../shared';
-import { computePossiblyBlockedOnPrompt } from '../../shared/possiblyBlockedOnPrompt';
 // T710 (007/CA-11 2º momento) — o sinal de "a retomada falhou" é o exit code do
 // PTY (medido em specs/008-fechar-pendencias/medicao-t710.md), não texto de CLI.
 import { resumedSessionIdFromArgs, shouldForgetOnResumeFailure } from '../../shared/resumeFailure';
@@ -44,6 +42,26 @@ import {
   resolveSessionName,
 } from '../../shared/sessionName';
 import { sessionTabName } from '../../shared/sessions';
+// 003-modo-dev (Batch B) — Zonas 1/2/3 do Modo Dev. Toda a decisão pura
+// (que sessão abrir, que sequência pré-digitar, quem focar, o que encerrar)
+// vive nos módulos de `DevMode/`; aqui fica só o encanamento com PTY/IPC.
+import { DEFAULT_PHASE_DEFAULTS } from '../../shared/devModeDefaults';
+import { isReadyToPreType } from '../../shared/preTypeReadiness';
+// 003-modo-dev (Batch D) — o espelho do board (CA-12/CA-13): anotação PURA em
+// cima da árvore de disco. `annotateTree` não persiste nada e o app não tem
+// canal de escrita para o TaskDex (invariante 5/CA-14).
+import { annotateTree } from '../../shared/boardAnnotation';
+import { DevModeEntry } from './DevMode/DevModeEntry';
+import { DiscoveryMap, type SelectedPhaseNode } from './DevMode/DiscoveryMap';
+import { PhaseButton } from './DevMode/PhaseButton';
+import { discoveriesToClose, resolveEntrySelection } from './DevMode/devModeSelection';
+import {
+  LIBERAR_COMMAND_TEMPLATE,
+  buildConciliationPrompt,
+  createPrimeSequencer,
+  decidePhaseOpen,
+  resolveCommandSequence,
+} from './DevMode/openPhaseSession';
 import styles from './App.module.css';
 import { Launcher } from './Launcher';
 import type { LauncherLaunchOptions } from './Launcher';
@@ -52,7 +70,6 @@ import { PreviousSessions } from './PreviousSessions';
 import { ProfileSwitcher } from './ProfileSwitcher';
 import { ProjectSidebar } from './ProjectSidebar';
 import type { FavoriteProjectGroup, FavoriteSessionRow, SidebarSession } from './ProjectSidebar';
-import { SessionDetails } from './SessionDetails';
 import { TerminalPane } from './TerminalPane';
 import type { TerminalPaneHandle } from './TerminalPane';
 
@@ -138,18 +155,22 @@ interface LastLaunch {
 // alcançável só por fechamento manual e passa a ser também o estado INICIAL.
 const INITIAL_TABS: TabState[] = [];
 
-// T013 (correção herdada) — timeout total de espera pela confirmação real do
-// CLI depois de uma injeção de `/model`/`/effort` (rede de segurança — a
-// checagem em si é orientada a evento, não poll; ver `watchLiveInjection`
-// dentro do componente).
-const LIVE_INJECTION_TIMEOUT_MS = 20_000;
 
-// FIX (feedback E2E rodada 5) — limiar do diagnóstico "sem nenhum evento de
-// hook ainda" no hint de SessionDetails (ver `possiblyBlockedOnPrompt` mais
-// abaixo). Mesma ordem de grandeza de `LIVE_INJECTION_TIMEOUT_MS` acima, não
-// reaproveitado direto de propósito: são timeouts de coisas diferentes
-// (confirmação de injeção já em voo vs. "a sessão nunca teve nenhum turno").
-const POSSIBLY_BLOCKED_THRESHOLD_MS = 20_000;
+// 003-modo-dev/T312 — teto de espera pelo sinal de "pronto para receber
+// input" antes de pré-digitar (plan.md, tabela de riscos: "se não voltar a
+// 'waiting' num teto, o app para no 1º passo e deixa a retomada manual —
+// nunca força o 2º"). Mesma ordem de grandeza (e o mesmo motivo: rede de
+// segurança de um sinal que pode nunca chegar) de `LIVE_INJECTION_TIMEOUT_MS`
+// acima; separado de propósito porque são esperas de coisas diferentes.
+const PRE_TYPE_READY_TIMEOUT_MS = 30_000;
+
+/** Intervalo do re-teste da prontidão. Não é um "delay fixo até digitar": o gatilho continua sendo o SINAL (semáforo/buffer), este tick só garante reavaliar quando o sinal chega sem um chunk novo de PTY junto. */
+const PRE_TYPE_POLL_MS = 250;
+
+/** Chave de uma ETAPA (marco × fase) do discovery em foco — a mesma granularidade de `archivedPhaseSessions` (CA-21). */
+function phaseKey(discoveryCardId: string, marcoId: string, phase: EsteiraPhase): string {
+  return `${discoveryCardId}:${marcoId}:${phase}`;
+}
 
 /** Remove uma chave de um record sem mutar o original — usado ao limpar `semaphoreStates`/`aliveTabs` no fechamento de aba. */
 function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
@@ -183,6 +204,11 @@ export function App(): React.JSX.Element {
   // `handleQuickNewClaudeSession`) sem depender do painel — isso não muda
   // (CA-1/smoke `profiles.spec.ts` já cobrem esse caminho).
   const [launcherOpen, setLauncherOpen] = useState(false);
+  // Teste manual 27/07 — colapso das laterais pra focar no terminal: sidebar
+  // (projetos/porta de entrada) e, no Modo Dev, o mapa da direita. Estado de
+  // UI puro (não persiste no config de propósito).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [rightCollapsed, setRightCollapsed] = useState(false);
   // T015 — ConfigStore (FR-007): roots/notificação/defaults do launcher.
   // `null` até `window.donel.config.get()` resolver no boot (mesmo padrão de
   // `projects`/`loadingProjects` acima) — os consumidores abaixo caem em
@@ -234,37 +260,6 @@ export function App(): React.JSX.Element {
   // REPL — TerminalPane.tsx). Limpo em `closeTabImmediately` (mesmo padrão
   // de `semaphoreStates`/`aliveTabs`).
   const aliveSinceRef = useRef<Record<string, number>>({});
-  // FIX (feedback E2E rodada 5) — nenhum estado muda sozinho com o passar
-  // do tempo; sem um tick periódico o diagnóstico acima ficaria "atrasado"
-  // até a próxima ação do usuário forçar um re-render. 5s é granularidade
-  // suficiente pro limiar de ~20s do diagnóstico (não precisa de setInterval
-  // mais fino que isso pra um hint textual).
-  //
-  // FIX (auditoria rodada 5, achado baixa "tick incondicional") — antes
-  // rodava pra sempre, incondicional, mesmo com zero abas abertas ou com
-  // TODAS as abas já tendo recebido evento de semáforo (quando o
-  // diagnóstico nunca mais pode mudar de valor) — trabalho periódico
-  // permanente no renderer, que o NFR de RAM (já acima do budget de 400MB,
-  // decisão pendente em feedback-e2e.md) não pode pagar de graça. Agora só
-  // agenda o `setInterval` enquanto existir ao menos uma aba viva cujo
-  // semáforo ainda não chegou (`semaphoreStates[id] === undefined`) — o
-  // único estado em que o diagnóstico pode efetivamente mudar com o passar
-  // do tempo; some sozinho assim que a última pendência resolve (evento de
-  // semáforo chega) ou a aba fecha.
-  //
-  // FIX (auditoria rodada 5, achado baixa "getRenderedLines fora do
-  // render") — `diagnosticTick` (antes descartado, `[, forceDiagnosticTick]`)
-  // agora também entra como dependência do efeito de `possiblyBlockedOnPrompt`
-  // mais abaixo: é o MESMO tick condicional (nunca um segundo `setInterval`
-  // novo) que faz esse diagnóstico reavaliar o limiar de tempo mesmo sem
-  // nenhum chunk novo de PTY chegando (buffer parado mostrando só o diálogo).
-  const [diagnosticTick, forceDiagnosticTick] = useState(0);
-  useEffect(() => {
-    const hasPendingDiagnostic = tabs.some((tab) => (aliveTabs[tab.id] ?? false) && semaphoreStates[tab.id] === undefined);
-    if (!hasPendingDiagnostic) return undefined;
-    const intervalId = setInterval(() => forceDiagnosticTick((tick) => tick + 1), 5_000);
-    return () => clearInterval(intervalId);
-  }, [tabs, aliveTabs, semaphoreStates]);
   // FIX (feedback E2E rodada 5) — perfil de NASCIMENTO de cada aba claude
   // (chave = tab.id), alimentado por `TerminalPane.onProfileResolved` uma
   // única vez por sessão (`PtyCreateResult.profile`, main/index.ts). Nunca
@@ -289,13 +284,6 @@ export function App(): React.JSX.Element {
   // ref callback comum, não state (não precisa re-render quando muda; o
   // próprio React já nula a entrada no unmount da aba).
   const terminalRefs = useRef<Record<string, TerminalPaneHandle | null>>({});
-  // T013 (correção herdada) — troca de modelo/esforço por aba (chave =
-  // tab.id) já ESCRITA no stdin mas ainda sem confirmação real do CLI no
-  // terminal renderizado; `undefined` = nenhuma injeção em voo nesta aba.
-  // Enquanto pendente, a toolbar (SessionDetails) fica desabilitada e mostra
-  // um hint distinto — `sessionModelEffort` só muda quando `watchLiveInjection`
-  // (abaixo) vir a confirmação de verdade. Ver shared/liveSessionInjection.ts.
-  const [pendingInjection, setPendingInjection] = useState<Record<string, 'model' | 'effort' | undefined>>({});
   // T610 (006) — tokens de contexto do último turn, chaveados por
   // **`sessionId`** (não `tab.id`): o watcher do main cobre TODA aba `claude`
   // viva, não existe "aba observada", e a mesma sessão retomada pode aparecer em
@@ -304,9 +292,6 @@ export function App(): React.JSX.Element {
   // logo abaixo); `undefined`/`null` = sem leitura ainda → a toolbar mostra `—`
   // (CA-4), nunca `0%`.
   const [contextTokens, setContextTokens] = useState<Record<string, number | null>>({});
-  // Função de cleanup (unsubscribe de `onRenderedUpdate` + clearTimeout) por
-  // aba com injeção em voo — ver `watchLiveInjection`.
-  const pendingInjectionWatchersRef = useRef<Record<string, (() => void) | undefined>>({});
 
   // T013 — PARTE PRINCIPAL (FR-004, CA-2): projeto cujo painel "Sessões
   // anteriores" está aberto (null = painel fechado); dispara o fetch via
@@ -318,6 +303,48 @@ export function App(): React.JSX.Element {
   const [previousSessionsProject, setPreviousSessionsProject] = useState<ProjectInfo | null>(null);
   const [previousSessions, setPreviousSessions] = useState<SessionSummaryDto[]>([]);
   const [loadingPreviousSessions, setLoadingPreviousSessions] = useState(false);
+
+  // === 003-modo-dev (Batch B) — estado da UI do Modo Dev ===================
+  // Nada aqui é PERSISTIDO: o estado próprio do app (discoveries, foco,
+  // arquivadas, defaults) vive no ConfigStore via `devMode:*` (CA-21). O que
+  // está abaixo é só estado de TELA (modo ligado, o que está expandido, o
+  // comando armado) — some no restart, e deve mesmo.
+  const [devModeOn, setDevModeOn] = useState(false);
+  const [entryCards, setEntryCards] = useState<readonly EntryColumnCard[]>([]);
+  const [entryLoading, setEntryLoading] = useState(false);
+  /** Árvore por discovery ABERTO (`devMode:readTree`) — disco puro, relida sob demanda. */
+  const [discoveryTrees, setDiscoveryTrees] = useState<Record<string, DiscoveryTree>>({});
+  /** T327/CA-12 — os 4 fatos do board por card do discovery EM FOCO. `{}` = espelho sem fonte: a árvore aparece inteira, só sem anotação. */
+  const [boardFacts, setBoardFacts] = useState<Record<string, BoardFacts>>({});
+  /** T327/CA-16 — trava a liberar, confirmada antes de pré-digitar `/esteira-liberar` (a confirmação fala em ETIQUETA no board, nunca em arquivo). */
+  const [lockToRelease, setLockToRelease] = useState<{ marcoId: string; phase: EsteiraPhase; cardId: string } | null>(null);
+  const [focusedMarcoId, setFocusedMarcoId] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<SelectedPhaseNode | null>(null);
+  /** CA-3 — o comando ESCRITO e não enviado, exibido pelo `ArmedPrompt`. */
+  const [armedPrompt, setArmedPrompt] = useState<{ tabId: string; command: string; warning?: string } | null>(null);
+  /** D4 — Toast informativo (troca de foco, avisos); nunca tem ação de desfazer. */
+  const [devModeToast, setDevModeToast] = useState<string | null>(null);
+  /** C4/T318 — artefato aberto no lugar de uma sessão (discovery antigo sem `session-id`). */
+  const [openedArtifactPath, setOpenedArtifactPath] = useState<string | null>(null);
+  /** Etapa (`discovery:marco:fase`) → `tab.id` da sessão daquela etapa. É o que o arquivamento (CA-6) usa para achar a aba certa. */
+  const phaseTabsRef = useRef<Record<string, string>>({});
+  /**
+   * Hook só de teste (mesmo precedente de `launcher-last-command`, T008): o
+   * argv real do `claude` é montado no main, e o smoke não tem como
+   * inspecioná-lo a partir do renderer. Guarda a ÚLTIMA sessão aberta pelo
+   * Modo Dev (argv da tabela do CA-4 + `cwd`, que na fase `implementar` é a
+   * worktree do `ctx.md` — D3).
+   */
+  const [lastDevModeSession, setLastDevModeSession] = useState<{ args: readonly string[]; cwd: string } | null>(null);
+  /** Cleanup do watcher de prontidão em voo por aba (mesmo padrão de `pendingInjectionWatchersRef`). */
+  const armWatchersRef = useRef<Record<string, (() => void) | undefined>>({});
+  const semaphoreStatesRef = useRef<Record<string, SemaphoreStateInfo>>({});
+  semaphoreStatesRef.current = semaphoreStates;
+  /** CA-22 — slug do perfil ATIVO agora (reportado pelo ProfileSwitcher, que já busca a lista). */
+  const [activeProfileSlug, setActiveProfileSlug] = useState('principal');
+  /** Mesma razão de `appConfigRef`/`tabsRef`: a assinatura de `onPhaseArchived` tem deps vazias e precisa do valor ATUAL. */
+  const sessionProfilesRef = useRef<Record<string, { slug: string; name: string } | undefined>>({});
+  sessionProfilesRef.current = sessionProfiles;
 
   const handleSemaphoreChange = useCallback((tabId: string, info: SemaphoreStateInfo): void => {
     setSemaphoreStates((prev) => ({ ...prev, [tabId]: info }));
@@ -450,16 +477,22 @@ export function App(): React.JSX.Element {
     delete aliveSinceRef.current[tabId]; // FIX (feedback E2E rodada 5) — mesmo padrão de limpeza dos maps acima.
     setSessionProfiles((prev) => omitKey(prev, tabId)); // FIX (feedback E2E rodada 5) — idem.
     setSessionModelEffort((prev) => omitKey(prev, tabId));
-    // T013 — uma injeção pendente cuja confirmação ainda não chegou não pode
-    // continuar rodando pra uma aba que acabou de fechar (nem escreveria
-    // estado errado — `setPendingInjection`/`setSessionModelEffort` seriam
-    // no-ops sem a chave —, mas o listener/timeout ficaria vivo à toa até o
-    // timeout; melhor limpar já).
-    pendingInjectionWatchersRef.current[tabId]?.();
-    delete pendingInjectionWatchersRef.current[tabId];
-    setPendingInjection((prev) => omitKey(prev, tabId));
     delete terminalRefs.current[tabId];
+    // 003-modo-dev/T312 — nenhum watcher de prontidão sobrevive à aba que ele
+    // vigiava (senão tentaria escrever num PTY que já não existe).
+    armWatchersRef.current[tabId]?.();
+    delete armWatchersRef.current[tabId];
+    setArmedPrompt((prev) => (prev?.tabId === tabId ? null : prev));
   };
+
+  /**
+   * 003-modo-dev/T315 — a assinatura de `devMode:phaseArchived` é montada uma
+   * vez só (deps vazias) e precisa da versão ATUAL de `closeTabImmediately`
+   * (que lê `tabs`/`activeTabId` do render corrente). Mesmo padrão de
+   * `appConfigRef`/`tabsRef`.
+   */
+  const closeTabImmediatelyRef = useRef(closeTabImmediately);
+  closeTabImmediatelyRef.current = closeTabImmediately;
 
   // T010 — FR-006: "se a sessão estiver ativa (processo vivo), pede
   // confirmação" — senão fecha direto (ex.: aba já em 'ended'/'claude-not-found').
@@ -962,115 +995,437 @@ export function App(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // T013 (correção herdada) — assina `onRenderedUpdate` (EVENTO, disparado
-  // no callback de conclusão de cada `term.write`, ver TerminalPane.tsx) em
-  // vez de `setInterval`: a confirmação real do CLI ("Set model to Sonnet
-  // 5") dura só UM frame na tela antes do próximo redraw sobrescrever por
-  // cima (achado do smoke real, ver shared/liveSessionInjection.ts) — um
-  // poll periódico quase sempre chega tarde demais pra ver esse frame; só
-  // checar a CADA chunk processado garante nunca perder. Sem baseline (ver
-  // mesmo comentário — este CLI redesenha um viewport de tamanho FIXO, não
-  // um log sequencial, então "linhas novas desde X" não é um conceito válido
-  // aqui): checa o snapshot ATUAL inteiro a cada evento. `LIVE_INJECTION_
-  // TIMEOUT_MS` continua como rede de segurança (`setTimeout`, não mais
-  // `setInterval`): se a confirmação nunca chegar (usuário nunca responde o
-  // diálogo, ou o CLI falha), desiste de esperar. Só então
-  // `sessionModelEffort` é atualizado — nunca antes, nunca otimisticamente.
-  const watchLiveInjection = useCallback(
-    (tabId: string, kind: 'model' | 'effort', value: ModelAlias | EffortLevel): void => {
-      pendingInjectionWatchersRef.current[tabId]?.(); // cancela qualquer watcher anterior desta aba
+  // =========================================================================
+  // 003-modo-dev (Batch B) — Zonas 1/2/3
+  //
+  // INVARIANTE 2 (CA-3): o único ponto deste bloco que escreve no PTY é
+  // `armPhaseCommands` abaixo, via `TerminalPaneHandle.injectCommand`, com o
+  // texto EXATO devolvido por `resolveCommandSequence` — nunca com `\r`/`\n`
+  // concatenado. O Enter é sempre gesto humano.
+  // =========================================================================
 
-      let settled = false;
-      const settle = (confirmed: boolean): void => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        delete pendingInjectionWatchersRef.current[tabId];
-        setPendingInjection((prev) => omitKey(prev, tabId));
+  const devModeState = appConfig?.devMode;
+  const focusedDiscoveryId = devModeState?.focusedDiscoveryId ?? null;
+  const focusedDiscovery = focusedDiscoveryId ? (devModeState?.discoveries[focusedDiscoveryId] ?? null) : null;
+  const rawFocusedTree = focusedDiscoveryId ? (discoveryTrees[focusedDiscoveryId] ?? null) : null;
+  /**
+   * T327/CA-12 — a MESMA árvore de disco, com os 4 fatos do board sobrepostos.
+   * `annotateTree` é puro: não persiste nada e ignora qualquer card que não
+   * seja marco desta árvore ("nunca cards fora do discovery em foco").
+   */
+  const focusedTree = useMemo(
+    () => (rawFocusedTree ? annotateTree(rawFocusedTree, boardFacts) : null),
+    [rawFocusedTree, boardFacts],
+  );
+  const phaseDefaults = devModeState?.phaseDefaults ?? DEFAULT_PHASE_DEFAULTS;
+  /** Marco EM FOCO (CA-7): a escolha explícita do usuário, ou o primeiro marco enquanto ele não escolheu. */
+  const focusedMarcoDisplay =
+    focusedTree?.marcos.find((marco) => marco.marcoId === focusedMarcoId) ?? focusedTree?.marcos[0] ?? null;
+  /** T327/D1 — a fase travada segundo o BOARD (etiqueta `esteira:em-andamento:<fase>`), nunca um arquivo em disco. */
+  const focusedLockedPhase = focusedMarcoDisplay?.boardFacts?.lockedPhase ?? null;
 
-        if (!confirmed) return; // timeout sem confirmação — desiste, valor antigo (correto) permanece
+  /** CA-1 — lista de candidatos do board. Sem fonte configurada volta `[]` (porta desligada, não erro). */
+  const refreshEntryCards = useCallback((): void => {
+    setEntryLoading(true);
+    void window.donel.devMode
+      .listEntryCards()
+      .then(setEntryCards)
+      .catch(() => setEntryCards([]))
+      .finally(() => setEntryLoading(false));
+  }, []);
 
-        setSessionModelEffort((prev) => {
-          const base = prev[tabId] ?? { model: DEFAULT_MODEL_ALIAS, effort: DEFAULT_EFFORT_LEVEL };
-          return {
-            ...prev,
-            [tabId]: kind === 'model' ? { ...base, model: value as ModelAlias } : { ...base, effort: value as EffortLevel },
-          };
-        });
-      };
+  /** Relê do DISCO a árvore de todo discovery aberto (CA-7). Barato: `readTree` é só `existsSync`/`readFile` de manifesto. */
+  const refreshDiscoveryTrees = useCallback((discoveryIds: readonly string[]): void => {
+    for (const cardId of discoveryIds) {
+      void window.donel.devMode
+        .readTree(cardId)
+        .then((tree) => setDiscoveryTrees((prev) => ({ ...prev, [cardId]: tree })))
+        .catch(() => undefined);
+    }
+  }, []);
 
-      const checkNow = (): void => {
-        const current = terminalRefs.current[tabId]?.getRenderedLines() ?? [];
-        if (hasLiveInjectionConfirmation(current, kind)) settle(true);
-      };
-
-      const unsubscribe = terminalRefs.current[tabId]?.onRenderedUpdate(checkNow) ?? ((): void => {});
-      const timeoutId = setTimeout(() => settle(false), LIVE_INJECTION_TIMEOUT_MS);
-      const cleanup = (): void => {
-        unsubscribe();
-        clearTimeout(timeoutId);
-      };
-
-      pendingInjectionWatchersRef.current[tabId] = cleanup;
-      checkNow(); // defesa em profundidade: cobre a confirmação já ter acontecido antes desta chamada
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+  const openDiscoveryIds = useMemo(
+    () =>
+      Object.values(devModeState?.discoveries ?? {})
+        .filter((discovery) => discovery.closedAt === null)
+        .map((discovery) => discovery.cardId),
+    [devModeState],
   );
 
-  // T011 — FR-011: injeta `/model <alias>\r` no stdin da aba `tabId` só com
-  // o prompt ocioso. `canInjectLiveCommand` já é o mesmo gate que desabilita
-  // o SegmentedControl da toolbar (SessionDetails); reconferido aqui (defesa
-  // em profundidade contra a corrida rara clique-vs-mudança-de-estado — o
-  // clique nasce de um render que pode já estar um tick atrás do semáforo).
-  // Clique na opção já ativa não injeta nada (nenhuma mudança de verdade a
-  // aplicar); uma injeção já em voo na mesma aba também não injeta uma 2ª
-  // por cima (T013 — `pendingInjection`).
-  //
-  // T013 (correção herdada) — NÃO grava `sessionModelEffort` aqui mais: só
-  // marca a troca como pendente e delega a confirmação de verdade pro
-  // watcher orientado a evento (`watchLiveInjection`) — ver comentário de
-  // topo dessas funções e shared/liveSessionInjection.ts pro porquê (o CLI
-  // pode abrir um diálogo interativo de confirmação que o usuário pode
-  // recusar).
-  const handleSelectModel = (tabId: string, model: ModelAlias): void => {
-    if (sessionModelEffort[tabId]?.model === model) return;
-    if (pendingInjection[tabId]) return;
-    if (!canInjectLiveCommand(semaphoreStates[tabId]?.state, aliveTabs[tabId] ?? false)) return;
-    const injected = terminalRefs.current[tabId]?.injectCommand(buildModelInjection(model)) ?? false;
-    if (!injected) return;
-    setPendingInjection((prev) => ({ ...prev, [tabId]: 'model' }));
-    watchLiveInjection(tabId, 'model', model);
+  useEffect(() => {
+    if (!devModeOn) return;
+    refreshEntryCards();
+  }, [devModeOn, refreshEntryCards]);
+
+  useEffect(() => {
+    if (!devModeOn || openDiscoveryIds.length === 0) return;
+    refreshDiscoveryTrees(openDiscoveryIds);
+  }, [devModeOn, openDiscoveryIds, refreshDiscoveryTrees]);
+
+  /**
+   * T327/CA-12 — os 4 fatos do board, SÓ dos cards do discovery em foco. A
+   * lista consultada é a dos marcos desta árvore: nenhum card fora do foco é
+   * pedido, e nada é escrito de volta (invariante 5). Board sem fonte devolve
+   * `{}` — o mapa continua idêntico ao da Fatia 1, sem erro na tela.
+   */
+  const focusedMarcoCardIds = useMemo(
+    () => (rawFocusedTree ? rawFocusedTree.marcos.map((marco) => marco.cardId) : []),
+    [rawFocusedTree],
+  );
+
+  useEffect(() => {
+    if (!devModeOn || focusedMarcoCardIds.length === 0) {
+      setBoardFacts({});
+      return;
+    }
+    void window.donel.devMode
+      .readBoardFacts(focusedMarcoCardIds)
+      .then(setBoardFacts)
+      .catch(() => setBoardFacts({}));
+  }, [devModeOn, focusedMarcoCardIds]);
+
+  // T321/CA-23 — encerramento automático: o discovery some da lista de abertos
+  // quando TODO marco tem `concluir: success`. Fato verificável (gate de
+  // `esteira-concluir`), não opinião do app — e sem passo manual.
+  useEffect(() => {
+    if (!devModeState) return;
+    const toClose = discoveriesToClose(Object.values(discoveryTrees), devModeState.discoveries);
+    for (const cardId of toClose) {
+      void window.donel.devMode.closeDiscovery(cardId).then(setAppConfig).catch(() => undefined);
+    }
+  }, [discoveryTrees, devModeState]);
+
+  /**
+   * T312/CA-3 — escreve a sequência no PTY, um comando por vez, SEM `\r`.
+   * Só escreve quando `isReadyToPreType` diz que a sessão aceita input
+   * (semáforo em `'waiting'` ou REPL desenhado; nunca com o diálogo de
+   * confiança na tela). O 2º comando do CA-16 só sai depois de um `'waiting'`
+   * NOVO — ou seja, depois do Enter humano do 1º ter fechado o turno.
+   * Estourou o teto sem sinal: para, avisa, e deixa o resto manual.
+   */
+  const armPhaseCommands = useCallback((tabId: string, commands: readonly string[], warning?: string): void => {
+    armWatchersRef.current[tabId]?.();
+    const sequencer = createPrimeSequencer(commands);
+    if (sequencer.done) return;
+
+    let armedAt = 0;
+    let isFirstStep = true;
+    let settled = false;
+    let armedAny = false;
+
+    const cleanup = (): void => {
+      unsubscribe();
+      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+      delete armWatchersRef.current[tabId];
+    };
+
+    const stop = (): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+    };
+
+    const check = (): void => {
+      if (settled) return;
+      const ready = isReadyToPreType({
+        isFirstStep,
+        semaphore: semaphoreStatesRef.current[tabId],
+        armedAt,
+        renderedLines: terminalRefs.current[tabId]?.getRenderedLines() ?? [],
+      });
+      if (!ready) return;
+
+      const command = sequencer.next();
+      if (command === null) {
+        stop();
+        return;
+      }
+
+      // ⬇⬇ O gesto central: texto puro, nunca `\r`. ⬇⬇
+      const written = terminalRefs.current[tabId]?.injectCommand(command) ?? false;
+      if (!written) return; // PTY ainda não nasceu — tenta de novo no próximo sinal
+
+      armedAt = Date.now();
+      isFirstStep = false;
+      armedAny = true;
+      setArmedPrompt({ tabId, command, warning });
+      if (sequencer.done) stop();
+    };
+
+    const unsubscribe = terminalRefs.current[tabId]?.onRenderedUpdate(check) ?? ((): void => {});
+    const intervalId = setInterval(check, PRE_TYPE_POLL_MS);
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      stop();
+      // Só avisa quando NADA foi preparado. Numa sequência do CA-16, o 2º
+      // passo depende do Enter humano do 1º — o humano demorar não é falha,
+      // é o fluxo normal; um aviso aqui seria ruído (e mentira).
+      if (!armedAny) setDevModeToast('A sessão não ficou pronta a tempo — o comando não foi preparado.');
+    }, PRE_TYPE_READY_TIMEOUT_MS);
+
+    armWatchersRef.current[tabId] = cleanup;
+    check();
+  }, []);
+
+  /**
+   * T312/T313/T318/T319 — o clique numa fase. A DECISÃO é pura
+   * (`decidePhaseOpen`/`resolveCommandSequence`); aqui só o encanamento:
+   * criar/focar/retomar a aba e mandar armar o comando.
+   */
+  const handlePhaseAction = (marcoId: string, phase: EsteiraPhase): void => {
+    if (!focusedDiscovery || !focusedTree) return;
+    const marco = focusedTree.marcos.find((candidate) => candidate.marcoId === marcoId);
+    if (!marco) return;
+
+    const node = marco.phases[phase];
+    const key = phaseKey(focusedDiscovery.cardId, marcoId, phase);
+    setSelectedNode({ marcoId, phase });
+    setOpenedArtifactPath(null);
+
+    // Sessão daquela etapa já aberta nesta execução: foca, não duplica (C6
+    // "uma sessão por etapa" — e o estado real dela é `running`).
+    const existingTabId = phaseTabsRef.current[key];
+    if (existingTabId && tabs.some((tab) => tab.id === existingTabId)) {
+      setActiveTabId(existingTabId);
+      return;
+    }
+
+    const defaults = phaseDefaults[phase];
+    const artifactPath = node.artifacts.result
+      ? node.artifacts.resultPath
+      : node.artifacts.ctxExists
+        ? node.artifacts.ctxPath
+        : null;
+
+    const decision = decidePhaseOpen({
+      phase,
+      defaults,
+      status: node.status,
+      archivedSession: node.archivedSession,
+      repoPath: focusedDiscovery.repoPath,
+      worktreePath: node.artifacts.worktreePath,
+      artifactPath,
+    });
+    const sequence = resolveCommandSequence({ status: node.status, defaults, cardId: marco.cardId });
+    const warning =
+      node.status === 'stuck'
+        ? 'Fase travada — o comando de liberar vem primeiro, com o seu Enter.'
+        : node.status === 'failed'
+          ? 'Fase falhou — a mesma skill volta preparada.'
+          : undefined;
+
+    switch (decision.kind) {
+      case 'use-focused': {
+        // T313 — exceção do `concluir` (C6): pré-digita na aba EM FOCO,
+        // nunca cria PTY. Sem aba claude em foco: avisa e não faz nada (uma
+        // sessão "vazia" só pra ter onde digitar seria pior que o aviso).
+        const target = tabs.find((tab) => tab.id === activeTabId && tab.sessionType === 'claude');
+        if (!target) {
+          setDevModeToast('Sem sessão Claude em foco — abra ou foque uma aba para preparar o /esteira-concluir.');
+          return;
+        }
+        armPhaseCommands(target.id, sequence, warning);
+        return;
+      }
+
+      case 'create': {
+        const tabId = addTab({
+          name: `[${marcoId}] ${phase}`,
+          cwd: decision.cwd,
+          projectName: projects.find((project) => project.path === decision.cwd)?.name,
+          pinned: false,
+          launchArgs: [...decision.args],
+          sessionType: 'claude',
+        });
+        phaseTabsRef.current[key] = tabId;
+        setLastDevModeSession({ args: decision.args, cwd: decision.cwd });
+        // CA-6 — o gatilho do arquivamento é o MANIFESTO em disco; ligar o
+        // watcher agora é o que permite fechar a aba quando ele aparecer.
+        void window.donel.devMode
+          .watchPhase({ discoveryCardId: focusedDiscovery.cardId, cardId: marco.cardId, marcoId, phase })
+          .catch(() => undefined);
+        armPhaseCommands(tabId, sequence, warning);
+        return;
+      }
+
+      case 'resume': {
+        // CA-9 — volta à etapa concluída para CONSULTA: nada é pré-digitado.
+        const tabId = addTab({
+          name: `[${marcoId}] ${phase}`,
+          cwd: decision.cwd,
+          projectName: projects.find((project) => project.path === decision.cwd)?.name,
+          pinned: false,
+          launchArgs: [...decision.args],
+          sessionType: 'claude',
+        });
+        phaseTabsRef.current[key] = tabId;
+        setLastDevModeSession({ args: decision.args, cwd: decision.cwd });
+        if (node.archivedSession && node.archivedSession.profileSlug !== activeProfileSlug) {
+          // CA-22 — avisa qual conta, nunca bloqueia (o aviso inline no nó do
+          // mapa é o canal principal; o Toast cobre quem clicou pela Zona 2).
+          setDevModeToast(`Essa etapa rodou na conta ${node.archivedSession.profileSlug}.`);
+        }
+        return;
+      }
+
+      case 'open-artifact': {
+        // C4 — discovery antigo, sem `session-id` arquivado: o clique alcança
+        // o ARTEFATO (o mapa já lista os paths declarados), nunca tenta
+        // retomar uma sessão que não existe. Degradação esperada, não erro.
+        setOpenedArtifactPath(decision.path);
+        setDevModeToast('Etapa sem sessão arquivada — abrindo o artefato dela.');
+        return;
+      }
+    }
   };
 
-  // T011/T013 — idem `handleSelectModel`, pro campo Esforço (`/effort <level>\r`).
-  const handleSelectEffort = (tabId: string, effort: EffortLevel): void => {
-    if (sessionModelEffort[tabId]?.effort === effort) return;
-    if (pendingInjection[tabId]) return;
-    if (!canInjectLiveCommand(semaphoreStates[tabId]?.state, aliveTabs[tabId] ?? false)) return;
-    const injected = terminalRefs.current[tabId]?.injectCommand(buildEffortInjection(effort)) ?? false;
-    if (!injected) return;
-    setPendingInjection((prev) => ({ ...prev, [tabId]: 'effort' }));
-    watchLiveInjection(tabId, 'effort', effort);
+  /**
+   * T327/CA-16 — confirmada a liberação, pré-digita `/esteira-liberar
+   * <card_id>` na aba EM FOCO (mesma regra do `concluir`: nenhuma sessão nova
+   * nasce só para digitar um comando). **Nenhum arquivo é tocado** — a trava é
+   * a etiqueta `esteira:em-andamento:<fase>` no board (D1), e quem a remove é
+   * a skill, depois do Enter do humano.
+   */
+  const confirmReleaseLock = (): void => {
+    const target = lockToRelease;
+    setLockToRelease(null);
+    if (!target) return;
+
+    const tab = tabs.find((candidate) => candidate.id === activeTabId && candidate.sessionType === 'claude');
+    if (!tab) {
+      setDevModeToast('Sem sessão Claude em foco — abra ou foque uma aba para preparar o /esteira-liberar.');
+      return;
+    }
+
+    armPhaseCommands(tab.id, [LIBERAR_COMMAND_TEMPLATE.replace('{card_id}', target.cardId)]);
   };
 
-  // T011 — degradação do FR-011 quando não há processo vivo pra injetar
-  // (sessão 'done'/'error'/ainda conectando): fecha a aba encerrada e abre
-  // uma sessão claude NOVA no mesmo cwd/nome, com `--model`/`--effort` já no
-  // argv de spawn (CommandBuilder, T006) — mesmo caminho do Launcher, só que
-  // disparado pela toolbar em vez do painel. Perde o histórico da conversa
-  // (não tem `-r` aqui — resume real é T012/T013); o próprio texto do
-  // FR-011 já prevê essa perda como o preço aceito da degradação (a garantia
-  // de "sem perder contexto" da DoD é do caminho de injeção ao vivo, não
-  // deste fallback).
-  const handleRestartWithConfig = (tabId: string): void => {
-    const tab = tabs.find((candidate) => candidate.id === tabId);
-    if (!tab) return;
-    const pending = sessionModelEffort[tabId] ?? { model: DEFAULT_MODEL_ALIAS, effort: DEFAULT_EFFORT_LEVEL };
-    const args = buildClaudeArgs({ model: pending.model, effort: pending.effort, sessionName: tab.name || undefined });
-    closeTabImmediately(tabId);
-    addTab({ name: tab.name, cwd: tab.cwd, projectName: tab.projectName, pinned: tab.pinned, launchArgs: args, sessionType: 'claude' });
+  /**
+   * T328/CA-13 — sessão de CONCILIAÇÃO: sessão nova, com o prompt que descreve
+   * os dois fatos divergentes já ESCRITO e não enviado (mesma regra do CA-3).
+   * O app não corrige o board — não existe canal para isso.
+   */
+  const handleConciliate = (marcoId: string, phase: EsteiraPhase): void => {
+    if (!focusedDiscovery || !focusedTree) return;
+    const marco = focusedTree.marcos.find((candidate) => candidate.marcoId === marcoId);
+    const divergence = marco?.phases[phase].divergence;
+    if (!marco || !divergence) return;
+
+    const tabId = addTab({
+      name: `[${marcoId}] conciliação`,
+      cwd: focusedDiscovery.repoPath,
+      projectName: projects.find((project) => project.path === focusedDiscovery.repoPath)?.name,
+      pinned: false,
+      launchArgs: buildClaudeArgs({}),
+      sessionType: 'claude',
+    });
+    armPhaseCommands(tabId, [
+      buildConciliationPrompt({
+        cardId: marco.cardId,
+        marcoId,
+        phase,
+        diskStatus: divergence.diskStatus,
+        boardColumn: divergence.boardColumn,
+      }),
+    ]);
   };
+
+  /** T311/CA-2 — clique num card da porta de entrada. `resolveEntrySelection` (puro) decide focar × criar. */
+  const handleSelectEntryCard = (cardId: string, repoPath: string): void => {
+    const selection = resolveEntrySelection({
+      cardId,
+      discoveries: devModeState?.discoveries ?? {},
+      trees: Object.values(discoveryTrees),
+    });
+
+    if (selection.kind === 'focus') {
+      void window.donel.devMode
+        .focusDiscovery(selection.discoveryCardId)
+        .then((config) => {
+          setAppConfig(config);
+          setFocusedMarcoId(null);
+          setSelectedNode(null);
+          // D4 — Toast só INFORMATIVO: trocar o foco já é reversível pelo
+          // próprio gesto (clicar no outro card), então nada de "desfazer".
+          setDevModeToast(`Discovery ${selection.discoveryCardId} em foco.`);
+        })
+        .catch(() => undefined);
+      return;
+    }
+
+    if (!repoPath) {
+      setDevModeToast('Escolha o repo do discovery antes de criar.');
+      return;
+    }
+
+    void window.donel.devMode
+      .openDiscovery({ cardId: selection.cardId, repoPath, epicId: null })
+      .then(() => window.donel.devMode.focusDiscovery(selection.cardId))
+      .then((config) => {
+        setAppConfig(config);
+        setFocusedMarcoId(null);
+        setSelectedNode(null);
+        refreshDiscoveryTrees([selection.cardId]);
+        // CA-2 — "criar discovery novo dispara /esteira-discovery <card_id>
+        // pela regra do CA-3": sessão nova + comando ESCRITO, sem Enter.
+        const defaults = (config.devMode.phaseDefaults ?? DEFAULT_PHASE_DEFAULTS).discovery;
+        const tabId = addTab({
+          name: `${selection.cardId} discovery`,
+          cwd: repoPath,
+          projectName: projects.find((project) => project.path === repoPath)?.name,
+          pinned: false,
+          launchArgs: buildClaudeArgs({ model: defaults.model, effort: defaults.effort }),
+          sessionType: 'claude',
+        });
+        armPhaseCommands(tabId, resolveCommandSequence({ status: 'not-started', defaults, cardId: selection.cardId }));
+      })
+      .catch(() => undefined);
+  };
+
+  // T315/CA-6 — arquivamento por MANIFESTO: `<fase>-result.json` com
+  // `status: "success"` fecha a aba daquela etapa e registra o `session-id`
+  // (com o perfil de NASCIMENTO da aba, CA-22). Etapa que falhou não chega
+  // aqui — o watcher só emite em sucesso, e ela fica aberta de propósito.
+  // Nenhum `.jsonl` é apagado: o transcript é do CLI.
+  useEffect(() => {
+    const unsubscribe = window.donel.devMode.onPhaseArchived((payload: PhaseArchivedPayload) => {
+      const key = phaseKey(payload.discoveryCardId, payload.marcoId, payload.phase);
+      const tabId = phaseTabsRef.current[key];
+      const tab = tabId ? tabsRef.current.find((candidate) => candidate.id === tabId) : undefined;
+
+      if (tab?.claudeSessionId) {
+        void window.donel.devMode
+          .archivePhaseSession({
+            cardId: payload.cardId,
+            marcoId: payload.marcoId,
+            phase: payload.phase,
+            sessionId: tab.claudeSessionId,
+            profileSlug: sessionProfilesRef.current[tab.id]?.slug ?? 'principal',
+          })
+          .then(setAppConfig)
+          .catch(() => undefined);
+      }
+
+      if (tabId) {
+        delete phaseTabsRef.current[key];
+        armWatchersRef.current[tabId]?.();
+        closeTabImmediatelyRef.current(tabId);
+      }
+
+      void window.donel.devMode
+        .unwatchPhase({
+          discoveryCardId: payload.discoveryCardId,
+          cardId: payload.cardId,
+          marcoId: payload.marcoId,
+          phase: payload.phase,
+        })
+        .catch(() => undefined);
+
+      refreshDiscoveryTrees([payload.discoveryCardId]);
+    });
+    return unsubscribe;
+  }, [refreshDiscoveryTrees]);
 
   // T009 — antes do primeiro evento de hook chegar pra uma aba recém-criada,
   // assume 'working' (spike: estado inicial otimista) com stateEnteredAt=0
@@ -1247,53 +1602,6 @@ export function App(): React.JSX.Element {
   // T011 — aba em foco, pra decidir se a toolbar de Modelo/Esforço aparece (só sessões 'claude').
   const activeTab = tabs.find((tab) => tab.id === activeTabId);
 
-  // FIX (feedback E2E rodada 5) — diagnóstico pro hint de SessionDetails
-  // (statusHint): `true` só quando a aba em foco está viva, NENHUM evento de
-  // hook chegou ainda (`semaphoreStates[id]` continua undefined — ver
-  // comentário de `sidebarSessions` acima sobre o estado inicial otimista),
-  // já se passaram ~20s desde que ficou viva E (FIX auditoria rodada 5,
-  // achado media "sinal invertido") o diálogo de confiança de pasta está DE
-  // FATO visível no buffer renderizado da aba (`isTrustDialogVisible`) — sem
-  // essa última condição, o hint disparava pra QUALQUER aba claude ociosa por
-  // 20s sem nenhum prompt ainda digitado (o caso mais comum que existe, já
-  // que `hooks-settings.ts` não cobre `SessionStart`), virando ruído
-  // constante em vez de sinal real de bloqueio.
-  // `POSSIBLY_BLOCKED_THRESHOLD_MS` deliberadamente mais folgado que
-  // qualquer round-trip normal de boot — só existe pra separar "ainda
-  // conectando" de "provavelmente esperando resposta no terminal".
-  //
-  // FIX (auditoria rodada 5, achado baixa "getRenderedLines fora do
-  // render") — antes `activeRenderedLines`/`possiblyBlockedOnPrompt` eram
-  // calculados DIRETO no corpo de render (chamando `getRenderedLines()`,
-  // uma leitura imperativa do buffer mutável do xterm, a cada passada de
-  // render — viola pureza de render do React; em StrictMode o render duplo
-  // podia ler dois snapshots diferentes do mesmo buffer). Agora é estado
-  // (`useState`), recalculado só dentro de um efeito: reage a mudanças de
-  // `activeTab`/`aliveTabs`/`semaphoreStates` OU ao `diagnosticTick`
-  // condicional já existente acima (nunca um `setInterval` novo — reaproveita
-  // o mesmo tick, que só roda enquanto houver aba viva com semáforo pendente).
-  const [possiblyBlockedOnPrompt, setPossiblyBlockedOnPrompt] = useState(false);
-  useEffect(() => {
-    const alive = !!activeTab && (aliveTabs[activeTab.id] ?? false);
-    const semaphorePending = !!activeTab && semaphoreStates[activeTab.id] === undefined;
-    const aliveSince = activeTab ? aliveSinceRef.current[activeTab.id] : undefined;
-    // FIX (auditoria rodada 6, achado media "sem testes de unidade pra
-    // possiblyBlockedOnPrompt") — decisão pura extraída pra
-    // `shared/possiblyBlockedOnPrompt.ts` (testada em
-    // `tests/possiblyBlockedOnPrompt.test.ts`); este efeito só junta o
-    // estado do React (aba/vivo/semáforo/buffer renderizado) e repassa.
-    setPossiblyBlockedOnPrompt(
-      computePossiblyBlockedOnPrompt({
-        alive,
-        semaphorePending,
-        aliveSince,
-        now: Date.now(),
-        thresholdMs: POSSIBLY_BLOCKED_THRESHOLD_MS,
-        getRenderedLines: () => (activeTab ? (terminalRefs.current[activeTab.id]?.getRenderedLines() ?? []) : []),
-      }),
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, aliveTabs, semaphoreStates, diagnosticTick]);
 
   // FIX (T015, FR-009 "statusbar completa") — era hardcoded "fable/high"
   // (sempre o mesmo texto, ignorando a aba real): agora reflete o
@@ -1301,9 +1609,18 @@ export function App(): React.JSX.Element {
   // mantido pelo T011/T013), e some quando a aba ativa não é uma sessão
   // claude (terminal livre não tem os dois campos — `StatusBar` omite o
   // separador quando `modelEffort` é `undefined`).
+  // FIX (teste manual 27/07) — com a toolbar SessionDetails removida, o rodapé
+  // é a única leitura de modelo/esforço; ganha também o contexto REAL do último
+  // turno (T610, transcript-watcher — nunca estimado, some sem leitura).
+  const activeContextTokens = activeTab?.claudeSessionId ? (contextTokens[activeTab.claudeSessionId] ?? null) : null;
   const activeModelEffort =
     activeTab && activeTab.sessionType === 'claude'
-      ? `${sessionModelEffort[activeTab.id]?.model ?? DEFAULT_MODEL_ALIAS}/${sessionModelEffort[activeTab.id]?.effort ?? DEFAULT_EFFORT_LEVEL}`
+      ? [
+          `${sessionModelEffort[activeTab.id]?.model ?? DEFAULT_MODEL_ALIAS}/${sessionModelEffort[activeTab.id]?.effort ?? DEFAULT_EFFORT_LEVEL}`,
+          activeContextTokens !== null ? `ctx ${Math.round(activeContextTokens / 1000)}k` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')
       : undefined;
 
   // FIX (feedback E2E rodada 5) — "statusbar deve mostrar a conta com que a
@@ -1340,8 +1657,48 @@ export function App(): React.JSX.Element {
           <span aria-hidden="true">◆</span>
           <span>Donel Dev</span>
         </div>
-        <ProfileSwitcher onActiveProfileLabelChange={setAccountLabel} onHeadroomChange={setProfileHeadroom} />
+        <ProfileSwitcher
+          onActiveProfileLabelChange={setAccountLabel}
+          onHeadroomChange={setProfileHeadroom}
+          onActiveProfileSlugChange={setActiveProfileSlug}
+        />
+        {/* T310/CA-20 — o switch do Modo Dev. Ligar REORGANIZA o layout desta
+            mesma janela; desligar volta à tela de hoje, que não é aposentada
+            (nem desmontada: a sidebar e as abas continuam montadas, ocultas
+            por CSS — mesmo princípio do T007 "todas as abas ficam montadas",
+            é o que garante que nenhum PTY é recriado no toggle). */}
+        <div className={styles.devModeToggle} data-testid="devmode-toggle">
+          <Toggle checked={devModeOn} onChange={setDevModeOn} label="Modo Dev" />
+        </div>
         {/* T015 — UI de Preferências (FR-007, feedback E2E rodada 3/4). */}
+        <button
+          type="button"
+          className={styles.preferencesButton}
+          onClick={() => setSidebarCollapsed((prev) => !prev)}
+          aria-label={sidebarCollapsed ? 'Mostrar barra lateral' : 'Recolher barra lateral'}
+          title={sidebarCollapsed ? 'Mostrar barra lateral' : 'Recolher barra lateral'}
+        >
+          {sidebarCollapsed ? (
+            <PanelLeftOpen size={16} strokeWidth={1.5} aria-hidden="true" />
+          ) : (
+            <PanelLeftClose size={16} strokeWidth={1.5} aria-hidden="true" />
+          )}
+        </button>
+        {devModeOn ? (
+          <button
+            type="button"
+            className={styles.preferencesButton}
+            onClick={() => setRightCollapsed((prev) => !prev)}
+            aria-label={rightCollapsed ? 'Mostrar mapa do discovery' : 'Recolher mapa do discovery'}
+            title={rightCollapsed ? 'Mostrar mapa do discovery' : 'Recolher mapa do discovery'}
+          >
+            {rightCollapsed ? (
+              <PanelRightOpen size={16} strokeWidth={1.5} aria-hidden="true" />
+            ) : (
+              <PanelRightClose size={16} strokeWidth={1.5} aria-hidden="true" />
+            )}
+          </button>
+        ) : null}
         <button
           type="button"
           className={styles.preferencesButton}
@@ -1353,14 +1710,14 @@ export function App(): React.JSX.Element {
         </button>
         <SplitButton
           label="＋ Nova sessão"
-          onClick={handleQuickNewClaudeSession}
+          // FIX (teste manual 27/07) — o corpo do botão passa a ABRIR o
+          // Launcher (escolher modelo/esforço/projeto) em vez do quick-launch
+          // cego: pedido do dono ("sempre que eu aperte em Nova sessão
+          // apareça a barra lateral para escolher o modelo e afins"). O
+          // atalho rápido com a última config vira item do dropdown.
+          onClick={() => setLauncherOpen(true)}
           items={[
-            // FIX (feedback E2E rodada 3, painel colapsável) — "Sessão
-            // Claude" passa a ABRIR o painel de configuração (Launcher, §4)
-            // em vez de repetir o quick-launch do corpo (redundante antes:
-            // as duas ações faziam a MESMA coisa). O corpo do botão
-            // continua sendo o atalho rápido (última config usada).
-            { label: 'Sessão Claude', onSelect: () => setLauncherOpen(true) },
+            { label: 'Rápida (última config)', onSelect: handleQuickNewClaudeSession },
             // FIX (feedback E2E rodada 1, "terminal livre confuso") — rótulo
             // explícito no dropdown; "Terminal" sozinho não deixava claro
             // que era um shell livre (sem sessão claude nenhuma).
@@ -1369,7 +1726,22 @@ export function App(): React.JSX.Element {
         />
       </header>
 
-      <div className={launcherOpen ? styles.body : `${styles.body} ${styles.bodyPanelClosed}`}>
+      <div
+        className={[
+          styles.body,
+          devModeOn ? styles.bodyDevMode : '',
+          sidebarCollapsed ? styles.bodySidebarCollapsed : '',
+          // Direita zerada: no clássico sem Launcher; no Modo Dev quando o
+          // mapa foi recolhido e o Launcher não está aberto por cima.
+          (!devModeOn && !launcherOpen) || (devModeOn && rightCollapsed && !launcherOpen) ? styles.bodyRightCollapsed : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        {/* CA-20 — a tela de hoje continua MONTADA quando o Modo Dev liga
+            (só oculta por CSS): nada de remontar sidebar/abas, nada de PTY
+            recriado. Mesmo princípio já usado nas abas de terminal (T007). */}
+        <div className={devModeOn || sidebarCollapsed ? styles.zoneHidden : styles.zone} data-testid="today-sidebar">
         <ProjectSidebar
           projects={projects}
           loadingProjects={loadingProjects}
@@ -1385,8 +1757,91 @@ export function App(): React.JSX.Element {
           onFocusOrResumeFavoriteSession={handleFocusOrResumeFavoriteSession}
           onToggleFavoriteSessionPinned={handleToggleFavoriteSessionPinned}
         />
+        </div>
+
+        {/* Zona 1 — porta de entrada (CA-1/CA-2), só no Modo Dev. */}
+        {devModeOn && !sidebarCollapsed ? (
+          <DevModeEntry
+            cards={entryCards}
+            discoveries={devModeState?.discoveries ?? {}}
+            trees={Object.values(discoveryTrees)}
+            projects={projects}
+            defaultRepoPath={selectedProjectPath}
+            onSelectCard={handleSelectEntryCard}
+            loading={entryLoading}
+          />
+        ) : null}
 
         <main className={styles.center}>
+          {/* Zona 2 — condução: a fase do marco em foco + o comando ARMADO
+              (escrito, não enviado). O botão nunca é desabilitado por trava
+              (CA-5/invariante 4) — o slot de aviso é que carrega o fato. */}
+          {devModeOn ? (
+            <section className={styles.devModeZone2} aria-label="Condução do marco em foco" data-testid="devmode-zone2">
+              {focusedTree && focusedMarcoDisplay ? (
+                <>
+                  <div className={styles.devModeMarcoLabel}>
+                    [{focusedMarcoDisplay.marcoId}] · {focusedMarcoDisplay.cardId}
+                  </div>
+                  <div className={styles.devModePhases}>
+                    {(['discovery', 'plano', 'implementar', 'validar', 'concluir'] as const).map((phase) => {
+                      const node = focusedMarcoDisplay.phases[phase];
+                      const archived = node.archivedSession;
+                      return (
+                        <PhaseButton
+                          key={phase}
+                          phase={phase}
+                          status={node.status}
+                          // T327/CA-5/D1 — dado REAL: a etiqueta de trava lida do
+                          // board. Sem fonte de board o slot segue vazio (Fatia 1).
+                          lockAnnotation={
+                            focusedLockedPhase === phase ? `trava no board desde a etiqueta esteira:em-andamento:${phase}` : null
+                          }
+                          onReleaseLock={
+                            focusedLockedPhase === phase
+                              ? () =>
+                                  setLockToRelease({
+                                    marcoId: focusedMarcoDisplay.marcoId,
+                                    phase,
+                                    cardId: focusedMarcoDisplay.cardId,
+                                  })
+                              : null
+                          }
+                          profileWarning={
+                            archived && archived.profileSlug !== activeProfileSlug ? `rodou na conta ${archived.profileSlug}` : null
+                          }
+                          resultUnreadable={node.artifacts.resultUnreadable}
+                          active={selectedNode?.marcoId === focusedMarcoDisplay.marcoId && selectedNode?.phase === phase}
+                          onClick={() => handlePhaseAction(focusedMarcoDisplay.marcoId, phase)}
+                        />
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <p className={styles.devModeHint} data-testid="devmode-zone2-empty">
+                  Escolha um card na porta de entrada para conduzir um discovery.
+                </p>
+              )}
+
+              {armedPrompt ? (
+                <div data-testid="devmode-armed">
+                <ArmedPrompt
+                  command={armedPrompt.command}
+                  hint="escrito no prompt — o Enter é seu"
+                  warning={armedPrompt.warning ? { text: armedPrompt.warning } : undefined}
+                  onDismiss={() => setArmedPrompt(null)}
+                />
+                </div>
+              ) : null}
+
+              {openedArtifactPath ? (
+                <p className={styles.devModeHint} data-testid="devmode-opened-artifact">
+                  {openedArtifactPath}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
           <div className={styles.tabBar}>
             {tabs.map((tab) => (
               <TerminalTab
@@ -1406,24 +1861,11 @@ export function App(): React.JSX.Element {
               />
             ))}
           </div>
-          {/* T011 (FR-011) — toolbar de Modelo/Esforço da aba ATIVA, só pra sessões claude (terminal livre não tem os dois campos). Ver comentário de topo de SessionDetails.tsx sobre por que aqui e não no painel direito. */}
-          {activeTab && activeTab.sessionType === 'claude' ? (
-            <SessionDetails
-              model={sessionModelEffort[activeTab.id]?.model ?? DEFAULT_MODEL_ALIAS}
-              effort={sessionModelEffort[activeTab.id]?.effort ?? DEFAULT_EFFORT_LEVEL}
-              semaphoreState={semaphoreStates[activeTab.id]?.state}
-              alive={aliveTabs[activeTab.id] ?? false}
-              onSelectModel={(model) => handleSelectModel(activeTab.id, model)}
-              onSelectEffort={(effort) => handleSelectEffort(activeTab.id, effort)}
-              onRestartWithConfig={() => handleRestartWithConfig(activeTab.id)}
-              pendingKind={pendingInjection[activeTab.id]}
-              possiblyBlockedOnPrompt={possiblyBlockedOnPrompt}
-              // T611 (006) — a aba resolve o próprio número pelo `sessionId`
-              // dela; sem `claudeSessionId` (create ainda não resolveu) não há o
-              // que mostrar → `—` (CA-4). Abas `shell` nem chegam aqui.
-              contextTokens={activeTab.claudeSessionId ? contextTokens[activeTab.claudeSessionId] ?? null : null}
-            />
-          ) : null}
+          {/* FIX (teste manual 27/07) — a toolbar de Modelo/Esforço
+              (SessionDetails) foi REMOVIDA dos dois modos a pedido do dono
+              ("não tem sido nem um pouco útil"): modelo/esforço agora se
+              escolhe no Launcher ao criar a sessão, e a leitura do que a
+              sessão usa vive na StatusBar (rodapé). */}
           <div className={styles.terminal}>
             {/* FIX (decisão A, 2026-07-23) — mesmo empty state pros dois
                 caminhos que levam a "zero abas": boot do app (INITIAL_TABS
@@ -1488,8 +1930,35 @@ export function App(): React.JSX.Element {
             Claude" do menu do "＋ Nova sessão", ou fechado ao lançar/Esc);
             fechado, o espaço vai pro `.center` (terminal), ver
             `styles.bodyPanelClosed` acima. */}
+        {/* Zona 3 — o mapa do discovery em foco (CA-7..CA-10). Quando o
+            Launcher está aberto no Modo Dev, ele ocupa esta mesma coluna
+            (o mapa volta ao fechar — Esc ou lançar). */}
+        {devModeOn && focusedTree && !launcherOpen && !rightCollapsed ? (
+          <DiscoveryMap
+            tree={focusedTree}
+            phaseDefaults={phaseDefaults}
+            focusedMarcoId={focusedMarcoDisplay?.marcoId ?? null}
+            selectedNode={selectedNode}
+            activeProfileSlug={activeProfileSlug}
+            onFocusMarco={(marcoId) => setFocusedMarcoId(marcoId)}
+            onSelectPhase={handlePhaseAction}
+            onConciliate={handleConciliate}
+          />
+        ) : null}
+
         {launcherOpen ? (
           <aside className={styles.rightPanel} aria-label="Lançar sessão">
+            {/* Teste manual 27/07 — fechar o painel precisa de um gesto
+                VISÍVEL (Esc continua valendo; lançar também fecha). */}
+            <button
+              type="button"
+              className={styles.rightPanelClose}
+              onClick={() => setLauncherOpen(false)}
+              aria-label="Fechar painel de nova sessão"
+              title="Fechar (Esc)"
+            >
+              <PanelRightClose size={16} strokeWidth={1.5} aria-hidden="true" />
+            </button>
             <Launcher
               projects={projects}
               defaultProjectPath={selectedProjectPath}
@@ -1512,6 +1981,10 @@ export function App(): React.JSX.Element {
         */}
         <pre data-testid="launcher-last-command" data-cwd={lastLaunch?.cwd ?? ''} hidden>
           {lastLaunch ? ['claude', ...lastLaunch.args].join(' ') : ''}
+        </pre>
+        {/* Idem, para o Modo Dev (T312/D3) — ver `lastDevModeSession`. */}
+        <pre data-testid="devmode-last-session" data-cwd={lastDevModeSession?.cwd ?? ''} hidden>
+          {lastDevModeSession ? ['claude', ...lastDevModeSession.args].join(' ') : ''}
         </pre>
       </div>
 
@@ -1554,6 +2027,37 @@ export function App(): React.JSX.Element {
         // nome dado na UI), não só a 1ª mensagem: é o caminho do US-A.
         sessionNames={appConfig?.sessionNames ?? {}}
       />
+
+      {/* T327/CA-16/D1 — confirmação de "Liberar trava…". O texto fala em
+          REMOVER A ETIQUETA DE TRAVA NO BOARD (nunca em "arquivo de trava":
+          esse arquivo não existe) e deixa claro que o app só PREPARA o
+          comando — nada é enviado sem o Enter dele. */}
+      <Modal
+        open={lockToRelease !== null}
+        onClose={() => setLockToRelease(null)}
+        title={lockToRelease ? `Liberar a trava de [${lockToRelease.marcoId}] · ${lockToRelease.phase}?` : ''}
+        actions={
+          <>
+            <Button variant="ghost" onClick={() => setLockToRelease(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" onClick={confirmReleaseLock} data-testid="devmode-confirm-release-lock">
+              Preparar /esteira-liberar
+            </Button>
+          </>
+        }
+      >
+        <p>
+          A trava é a etiqueta <code>esteira:em-andamento:{lockToRelease?.phase}</code> no card do board — não há arquivo de
+          trava em disco. Quem remove a etiqueta é a skill <code>/esteira-liberar</code>: o app apenas escreve o comando no
+          prompt, e o Enter continua sendo seu.
+        </p>
+      </Modal>
+
+      {/* D4 — Toast do Modo Dev: uma linha, SEM ação de desfazer. Trocar o
+          foco já é reversível pelo próprio gesto (clicar no outro card); uma
+          máquina de "desfazer" não agregaria valor nenhum. */}
+      <Toast open={devModeToast !== null} message={devModeToast ?? ''} onDismiss={() => setDevModeToast(null)} />
 
       {/* T015 — Preferências (FR-007, feedback E2E rodada 3/4). */}
       <Preferences

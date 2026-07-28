@@ -1,6 +1,6 @@
 {
   "name": "donel-dev",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Donel Dev — app desktop para operar várias sessões do Claude Code em paralelo.",
   "author": "Alexandre Lentz",
   "license": "MIT",

@@ -102,13 +102,12 @@ async function openFreeTerminalTab(): Promise<void> {
   await window.getByRole('menuitem', { name: 'Terminal' }).click();
 }
 
-// FIX (feedback E2E rodada 3, "painel lateral 'Lançar sessão' fixo rouba
-// espaço") — o Launcher deixou de ser um painel fixo: nasce fechado, abre
-// via item "Sessão Claude" do menu do "＋ Nova sessão" (App.tsx,
-// `launcherOpen`).
+// FIX (teste manual 27/07) — o corpo do "＋ Nova sessão" passou a ABRIR o
+// Launcher direto (App.tsx, `launcherOpen`); o antigo item de menu "Sessão
+// Claude" foi removido do dropdown (quick-launch virou "Rápida (última
+// config)").
 async function openLauncherPanel(): Promise<void> {
-  await window.getByRole('button', { name: 'Mais opções de ＋ Nova sessão' }).click();
-  await window.getByRole('menuitem', { name: 'Sessão Claude' }).click();
+  await window.getByRole('button', { name: '＋ Nova sessão', exact: true }).click();
   await expect(window.locator('[data-testid="launcher"]')).toBeVisible();
 }
 

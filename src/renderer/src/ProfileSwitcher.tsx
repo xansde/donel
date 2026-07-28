@@ -164,6 +164,14 @@ export interface ProfileSwitcherProps {
    * completo, não só de `activeHeadroom`.
    */
   onHeadroomChange?: (map: ProfileHeadroomMap) => void;
+  /**
+   * 003-modo-dev/T320 (CA-22) — SLUG do perfil ativo agora (não o rótulo
+   * exibido). O Modo Dev compara esse slug com o `profileSlug` gravado em
+   * cada etapa arquivada para avisar "essa etapa rodou na conta X". Mesmo
+   * motivo dos dois callbacks acima: este componente já faz o fetch de
+   * perfis; App.tsx não duplica a chamada só por um campo.
+   */
+  onActiveProfileSlugChange?: (slug: string) => void;
 }
 
 // T204 (002-quota-headroom) — `ProfileHeadroomMap` guarda `ProfileQuota`
@@ -179,7 +187,11 @@ function fiveHourPercent(quota: ProfileQuota | undefined): number | null {
   return quota.fiveHour?.percentRemaining ?? null;
 }
 
-export function ProfileSwitcher({ onActiveProfileLabelChange, onHeadroomChange }: ProfileSwitcherProps): React.JSX.Element {
+export function ProfileSwitcher({
+  onActiveProfileLabelChange,
+  onHeadroomChange,
+  onActiveProfileSlugChange,
+}: ProfileSwitcherProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [profiles, setProfiles] = useState<ProfileSummaryDto[]>(EMPTY_PROFILES);
   const [headroom, setHeadroom] = useState<ProfileHeadroomMap>({});
@@ -209,6 +221,9 @@ export function ProfileSwitcher({ onActiveProfileLabelChange, onHeadroomChange }
   // callback na própria lista de dependências.
   const onActiveProfileLabelChangeRef = useRef(onActiveProfileLabelChange);
   onActiveProfileLabelChangeRef.current = onActiveProfileLabelChange;
+  // 003-modo-dev/T320 — mesma razão do ref acima (fora da lista de deps).
+  const onActiveProfileSlugChangeRef = useRef(onActiveProfileSlugChange);
+  onActiveProfileSlugChangeRef.current = onActiveProfileSlugChange;
   const onHeadroomChangeRef = useRef(onHeadroomChange);
   onHeadroomChangeRef.current = onHeadroomChange;
 
@@ -358,6 +373,7 @@ export function ProfileSwitcher({ onActiveProfileLabelChange, onHeadroomChange }
         ? `Tecnologia Claude ${activeAccountNumber} · ${percentText}`
         : `${activeProfile.name} · ${percentText}`;
     onActiveProfileLabelChangeRef.current?.(label);
+    onActiveProfileSlugChangeRef.current?.(activeProfile.slug);
   }, [activeProfile, activeAccountNumber, activeHeadroom]);
 
   return (

@@ -53,11 +53,15 @@ test('o shell inteiro não tem scrollbar no documento (body.scrollHeight === bod
   // FIX (auditoria rodada 6 ciclo 2, achado media "CTA do titlebar reproduz
   // o bug do empty state em 1 clique") — sem `lastLaunch`/
   // `selectedProjectPath` (estado deste boot), o clique no corpo do "＋ Nova
-  // sessão" agora abre o Launcher (guard movido pra dentro de
-  // `handleQuickNewClaudeSession`, App.tsx) em vez de spawnar direto em
-  // `cwd: undefined`/home — escolhe `donel-dev` (repo já confiável nesta
-  // máquina) pra chegar na mesma prova de sempre (shell com terminal +
-  // toolbar Modelo/Esforço carregados).
+  // sessão" abre o Launcher em vez de spawnar direto em `cwd: undefined`/home
+  // — escolhe `donel-dev` (repo já confiável nesta máquina) pra chegar na
+  // mesma prova de sempre (shell com terminal carregado).
+  //
+  // FIX (teste manual 27/07) — o corpo do "＋ Nova sessão" agora abre o
+  // Launcher SEMPRE (não só na ausência de lançamento anterior); a toolbar de
+  // Modelo/Esforço (SessionDetails) foi removida — a leitura equivalente
+  // agora vive na StatusBar (rodapé), fora do escopo deste teste (que só
+  // mede scroll do documento).
   await window.getByRole('button', { name: '＋ Nova sessão', exact: true }).click();
   const launcher = window.locator('[data-testid="launcher"]');
   await expect(launcher).toBeVisible();

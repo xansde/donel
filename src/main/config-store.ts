@@ -2,6 +2,18 @@ import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, re
 import { dirname } from 'node:path';
 import type { EffortLevel, ModelAlias, PermissionMode } from '../shared/commandBuilder';
 import type { AppConfigDto, LauncherDefaultsDto, NotificationPreference, SessionNamesMap } from '../shared/config';
+import type {
+  ArchivedPhaseSession,
+  ArchivedPhaseSessions,
+  DevModeBoardConfig,
+  DevModeDiscoveries,
+  DevModeDiscovery,
+  DevModeState,
+  EsteiraPhase,
+  PhaseDefault,
+  PhaseDefaultsTable,
+} from '../shared/devMode';
+import { DEFAULT_PHASE_DEFAULTS } from '../shared/devModeDefaults';
 import type { StoredSessionName } from '../shared/sessionName';
 import type { RegisteredSession, SessionRegistry } from '../shared/sessionRegistry';
 import { PRINCIPAL_PROFILE_SLUG } from './profile-manager';
@@ -71,6 +83,8 @@ export interface AppConfig {
   readonly sessionRegistry: SessionRegistry;
   /** T708 (007) — projetos favoritados com o grupo COLAPSADO (CA-1). Ausência = expandido. */
   readonly collapsedFavorites: readonly string[];
+  /** T306 (003-modo-dev) — estado próprio do Modo Dev. Ver src/shared/devMode.ts. */
+  readonly devMode: DevModeState;
 }
 
 /** `projectRoots` não tem um default universal (depende do homedir da máquina) — quem chama monta com `defaultProjectRoots(homedir)` (project-scanner.ts) e passa aqui. */
@@ -86,6 +100,18 @@ export function defaultAppConfig(projectRoots: readonly string[]): AppConfig {
     theme: 'dark',
     sessionRegistry: {},
     collapsedFavorites: [],
+    devMode: defaultDevModeState(),
+  };
+}
+
+/** T306 — estado inicial do Modo Dev: nada aberto, tabela de defaults do C6. */
+function defaultDevModeState(): DevModeState {
+  return {
+    discoveries: {},
+    focusedDiscoveryId: null,
+    archivedPhaseSessions: {},
+    phaseDefaults: DEFAULT_PHASE_DEFAULTS,
+    boardConfig: null,
   };
 }
 
@@ -99,6 +125,7 @@ export function toAppConfigDto(config: AppConfig): AppConfigDto {
     theme: config.theme,
     sessionRegistry: config.sessionRegistry,
     collapsedFavorites: config.collapsedFavorites,
+    devMode: config.devMode,
   };
 }
 
@@ -255,6 +282,107 @@ function sanitizeSessionRegistry(value: unknown): SessionRegistry {
   return sanitized;
 }
 
+// ---------------------------------------------------------------------------
+// T306 (003-modo-dev) — sanitização de `devMode`, mesmo espírito campo a campo
+// do resto do arquivo. `phaseDefaults` é a ÚNICA exceção "tudo ou nada"
+// (tabela inconsistente é pior que a tabela default inteira — checklist
+// explícito da task).
+// ---------------------------------------------------------------------------
+
+const KNOWN_ESTEIRA_PHASES: readonly EsteiraPhase[] = ['discovery', 'plano', 'implementar', 'validar', 'concluir'];
+
+function isValidPhaseDefault(value: unknown): value is PhaseDefault {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<PhaseDefault>;
+  return (
+    isOneOf(candidate.model, KNOWN_MODEL_ALIASES) &&
+    isOneOf(candidate.effort, KNOWN_EFFORT_LEVELS) &&
+    typeof candidate.commandTemplate === 'string' &&
+    candidate.commandTemplate.trim().length > 0 &&
+    typeof candidate.opensOwnSession === 'boolean'
+  );
+}
+
+/**
+ * Tudo ou nada por design (T306 DoD): uma fase malformada ou ausente invalida
+ * a tabela inteira, que cai no `DEFAULT_PHASE_DEFAULTS` completo — nunca
+ * mistura fase boa com fase quebrada (tabela inconsistente seria pior).
+ */
+/** Exportado — `main/index.ts` reusa para validar o payload de `devMode:setDefaults` (T307) antes de persistir. */
+export function sanitizePhaseDefaultsTable(value: unknown): PhaseDefaultsTable {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return DEFAULT_PHASE_DEFAULTS;
+  const candidate = value as Partial<Record<EsteiraPhase, unknown>>;
+
+  const allValid = KNOWN_ESTEIRA_PHASES.every((phase) => isValidPhaseDefault(candidate[phase]));
+  return allValid ? (candidate as unknown as PhaseDefaultsTable) : DEFAULT_PHASE_DEFAULTS;
+}
+
+/** Uma entrada malformada (sem `repoPath`) é descartada isolada — as demais sobrevivem. */
+function sanitizeDevModeDiscoveries(value: unknown): DevModeDiscoveries {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+
+  const sanitized: Record<string, DevModeDiscovery> = {};
+  for (const [cardId, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (!cardId || typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
+    const candidate = entry as Partial<DevModeDiscovery>;
+    if (typeof candidate.repoPath !== 'string' || !candidate.repoPath) continue;
+    if (typeof candidate.openedAt !== 'number' || !Number.isFinite(candidate.openedAt)) continue;
+
+    sanitized[cardId] = {
+      cardId,
+      repoPath: candidate.repoPath,
+      epicId: typeof candidate.epicId === 'string' ? candidate.epicId : null,
+      openedAt: candidate.openedAt,
+      closedAt: typeof candidate.closedAt === 'number' && Number.isFinite(candidate.closedAt) ? candidate.closedAt : null,
+    };
+  }
+  return sanitized;
+}
+
+/** Chave vem do mapa (evita divergência), mesmo espírito de `sanitizeSessionRegistry`. */
+function sanitizeArchivedPhaseSessions(value: unknown): ArchivedPhaseSessions {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+
+  const sanitized: Record<string, ArchivedPhaseSession> = {};
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (!key || typeof entry !== 'object' || entry === null || Array.isArray(entry)) continue;
+    const candidate = entry as Partial<ArchivedPhaseSession>;
+    if (typeof candidate.sessionId !== 'string' || !candidate.sessionId) continue;
+    if (typeof candidate.profileSlug !== 'string' || !candidate.profileSlug) continue;
+    if (typeof candidate.archivedAt !== 'number' || !Number.isFinite(candidate.archivedAt)) continue;
+
+    sanitized[key] = { sessionId: candidate.sessionId, profileSlug: candidate.profileSlug, archivedAt: candidate.archivedAt };
+  }
+  return sanitized;
+}
+
+function sanitizeDevModeBoardConfig(value: unknown): DevModeBoardConfig | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const candidate = value as Partial<DevModeBoardConfig>;
+  if (typeof candidate.workspaceId !== 'string' || !candidate.workspaceId) return null;
+  if (typeof candidate.teamId !== 'string' || !candidate.teamId) return null;
+  return { workspaceId: candidate.workspaceId, teamId: candidate.teamId };
+}
+
+function sanitizeDevModeState(value: unknown, fallback: DevModeState): DevModeState {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return fallback;
+  const candidate = value as Partial<DevModeState>;
+
+  const discoveries = sanitizeDevModeDiscoveries(candidate.discoveries);
+  const focusedDiscoveryId =
+    typeof candidate.focusedDiscoveryId === 'string' && candidate.focusedDiscoveryId in discoveries
+      ? candidate.focusedDiscoveryId
+      : null;
+
+  return {
+    discoveries,
+    focusedDiscoveryId,
+    archivedPhaseSessions: sanitizeArchivedPhaseSessions(candidate.archivedPhaseSessions),
+    phaseDefaults: sanitizePhaseDefaultsTable(candidate.phaseDefaults),
+    boardConfig: sanitizeDevModeBoardConfig(candidate.boardConfig),
+  };
+}
+
 function sanitizeLauncherDefaults(value: unknown, fallback: LauncherDefaultsDto): LauncherDefaultsDto {
   if (typeof value !== 'object' || value === null) return fallback;
   const candidate = value as Partial<LauncherDefaultsDto>;
@@ -294,6 +422,7 @@ export function sanitizeAppConfig(parsed: unknown, defaults: AppConfig): AppConf
     theme: 'dark',
     sessionRegistry: sanitizeSessionRegistry(candidate.sessionRegistry),
     collapsedFavorites: isStringArray(candidate.collapsedFavorites) ? candidate.collapsedFavorites : defaults.collapsedFavorites,
+    devMode: sanitizeDevModeState(candidate.devMode, defaults.devMode),
   };
 }
 

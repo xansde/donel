@@ -69,6 +69,29 @@ describe('buildPtyEnv (puro)', () => {
     const env = buildPtyEnv({ PATH: 'C:\\bin', SOME_UNSET: undefined }, undefined);
     expect('SOME_UNSET' in env).toBe(false);
   });
+
+  // Achado do teste manual (27/07): app lançado de dentro de uma sessão do
+  // Claude Code herda os marcadores de sessão-mãe e o CLI dentro do app abre
+  // como "sessão filha" (transcript saving off, permission mode herdado). As
+  // sessões que o app cria são sempre sessões RAIZ — os marcadores nunca
+  // podem vazar do ambiente que lançou o app.
+  it('remove os marcadores de sessão-mãe do Claude Code herdados do ambiente que lançou o app', () => {
+    const env = buildPtyEnv(
+      {
+        PATH: 'C:\\bin',
+        CLAUDECODE: '1',
+        CLAUDE_CODE_CHILD_SESSION: 'marker',
+        CLAUDE_CODE_ENTRYPOINT: 'cli',
+        CLAUDE_CODE_SSE_PORT: '12345',
+      },
+      undefined,
+    );
+    expect('CLAUDECODE' in env).toBe(false);
+    expect('CLAUDE_CODE_CHILD_SESSION' in env).toBe(false);
+    expect('CLAUDE_CODE_ENTRYPOINT' in env).toBe(false);
+    expect('CLAUDE_CODE_SSE_PORT' in env).toBe(false);
+    expect(env.PATH).toBe('C:\\bin');
+  });
 });
 
 // T014 — integração: `PtyManager.create` aplica `claudeConfigDir` no env real do processo spawnado (não só na função pura `buildPtyEnv` isolada).

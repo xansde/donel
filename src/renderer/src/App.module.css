@@ -11,9 +11,11 @@
 .titlebar {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  height: 44px;
-  padding: 0 var(--space-2);
+  gap: var(--space-1);
+  /* Teste manual 27/07 — linha superior compacta (era 44px) pra devolver
+     altura ao terminal e facilitar o foco. */
+  height: 34px;
+  padding: 0 var(--space-1);
   background: var(--bg-panel);
   border-bottom: var(--hairline);
   -webkit-app-region: drag;
@@ -60,23 +62,43 @@
   box-shadow: var(--focus-ring);
 }
 
+/* Teste manual 27/07 — X do painel "Lançar sessão" (mesmo visual do gear). */
+.rightPanelClose {
+  composes: preferencesButton;
+  align-self: flex-end;
+}
+
 .body {
+  /* FIX (teste manual 27/07, "compactar as laterais") — as três colunas viram
+     variáveis para os estados de colapso comporem sem explosão de classes:
+     devMode × sidebar colapsada × direita colapsada/Launcher. */
+  --col-left: var(--sidebar-width);
+  --col-right: var(--right-panel-width);
   display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr var(--right-panel-width);
+  grid-template-columns: var(--col-left) 1fr var(--col-right);
+  /* FIX (teste manual 27/07, Modo Dev): sem conter a row, o conteúdo do
+     .center (zona 2 + terminal com rows fixas do xterm) cresce além do 1fr
+     do .shell e empurra a caixa de prompt do CLI pra baixo da dobra. A row
+     contida força o .terminal (flex:1 + min-height:0) a encolher e o fit do
+     xterm a recalcular as rows. */
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
 
-/* FIX (feedback E2E rodada 3, "painel lateral 'Lançar sessão' fixo rouba
-   espaço") — painel do Launcher fechado por default (App.tsx `launcherOpen`):
-   sem a 3ª coluna, o `.center` (terminal, 1fr) ocupa o espaço sozinho. */
-.bodyPanelClosed {
-  grid-template-columns: var(--sidebar-width) 1fr;
-}
+/* Os estados de colapso (.bodyRightCollapsed/.bodySidebarCollapsed) vivem
+   DEPOIS de .bodyDevMode no arquivo — mesma especificidade, a ordem decide
+   qual var vence, e colapso precisa vencer o default do Modo Dev. */
 
 .center {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  /* FIX (teste manual 27/07, "recolher desloca tudo") — colunas ANCORADAS:
+     quando um painel lateral desmonta, o auto-placement do grid deslizava os
+     itens restantes de coluna (o terminal caía na coluna colapsada de 0px e
+     "não carregava"). Cada peça declara sua coluna; desmontar não desloca. */
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .tabBar {
@@ -148,6 +170,75 @@
   padding: var(--panel-padding);
   background: var(--bg-panel);
   border-left: var(--hairline);
+  /* Âncora de coluna — ver comentário em .center. */
+  grid-column: 3;
+  grid-row: 1;
+  min-height: 0;
+  overflow-y: auto;
   overflow-y: auto;
 }
 
+
+/* === 003-modo-dev (T310, CA-20) — layout do Modo Dev ====================
+   Ligar o modo REORGANIZA esta mesma janela; a tela de hoje continua
+   montada e volta intacta ao desligar. Só tokens existentes. */
+
+.devModeToggle {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Wrapper de "zona da tela de hoje": oculta sem desmontar (mesmo princípio
+   de .terminalPaneHidden — o que está montado continua vivo). */
+.zone {
+  display: contents;
+}
+
+.zoneHidden {
+  display: none;
+}
+
+/* Zona 1 (280px) · terminal (1fr) · Zona 3 (320px) */
+.bodyDevMode {
+  --col-left: 280px;
+  --col-right: 320px;
+}
+
+/* FIX (feedback E2E rodada 3 + teste manual 27/07) — coluna direita zerada
+   quando não há Launcher aberto (clássico) ou o mapa do Modo Dev foi
+   recolhido. Depois de .bodyDevMode de propósito (a ordem decide a var). */
+.bodyRightCollapsed {
+  --col-right: 0px;
+}
+
+/* Teste manual 27/07 — sidebar (projetos ou porta de entrada) colapsável
+   pra facilitar o foco no terminal. */
+.bodySidebarCollapsed {
+  --col-left: 0px;
+}
+
+.devModeZone2 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--panel-padding);
+  border-bottom: var(--hairline);
+}
+
+.devModeMarcoLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}
+
+.devModePhases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.devModeHint {
+  font-size: var(--text-caption-size);
+  color: var(--text-muted);
+}

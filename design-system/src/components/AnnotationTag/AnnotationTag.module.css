@@ -1,0 +1,50 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.muted {
+  color: var(--text-muted);
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+}
+
+.ok {
+  color: var(--zone-ok);
+  background: color-mix(in srgb, var(--zone-ok) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--zone-ok) 45%, transparent);
+}
+
+.warn {
+  color: var(--state-waiting);
+  background: color-mix(in srgb, var(--state-waiting) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-waiting) 45%, transparent);
+}
+
+.error {
+  color: var(--state-permission);
+  background: color-mix(in srgb, var(--state-permission) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-permission) 45%, transparent);
+}
+
+.lock {
+  color: var(--state-error);
+  background: color-mix(in srgb, var(--state-error) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--state-error) 45%, transparent);
+}
+
+.accent {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}

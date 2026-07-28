@@ -1,5 +1,43 @@
 # Donel Dev — o que mudou
 
+## 0.3.0 — 27/07/2026
+
+O **Modo Dev** chegou — e a primeira noite de uso real dele lapidou a tela
+clássica também.
+
+- **Modo Dev (alternável no topo).** Ligou, a tela se reorganiza para conduzir
+  um trabalho da Esteira de ponta a ponta: a **porta de entrada** lista os
+  cards do board, o **mapa do discovery** mostra cada marco com o estado real
+  de cada fase (lido dos artefatos no disco do repositório), e clicar numa
+  fase abre a sessão com o comando **já escrito no prompt — o Enter é sempre
+  seu**; o app nunca envia nada em seu nome. Desligou, a tela de hoje volta
+  como era.
+- **Espelho do board.** Sobre o mapa, o Modo Dev anota o que o board sabe de
+  cada card: coluna real, etiqueta de trava, PR vinculado e aprovação. Quando
+  o disco e o board discordam sobre a fase, o marcador ⇄ aparece e um clique
+  prepara a sessão de conciliação (também sem Enter automático). Tudo
+  somente-leitura: o app nunca escreve no board.
+- **"＋ Nova sessão" agora abre o painel de escolha** (modelo, esforço,
+  projeto) em vez de disparar às cegas; o disparo rápido com a última
+  configuração virou item do menu do mesmo botão. O painel tem botão de
+  fechar, e funciona também no Modo Dev.
+- **A linha de Modelo/Esforço acima do terminal saiu.** A leitura vive no
+  rodapé, junto do **contexto real da sessão** (`modelo/esforço · ctx Nk`),
+  atualizada pelo que acontece de verdade no terminal.
+- **Foco no terminal**: barra superior mais baixa e as duas laterais
+  recolhíveis por botão — dá para trabalhar com o terminal em tela quase
+  cheia e trazer os painéis de volta quando precisar.
+- **Ctrl+V colava duas vezes — corrigido.** O texto entrava em dobro porque a
+  colagem do app convivia com a colagem nativa do navegador; agora só existe
+  uma.
+- **A caixa de digitação nunca mais cai fora da tela.** Um erro de layout
+  fazia o terminal crescer além da janela e esconder o prompt do CLI; o
+  terminal agora se ajusta ao espaço que existe.
+- **Sessões abertas pelo app são sempre sessões-raiz do Claude Code.** Se o
+  próprio Donel Dev tivesse sido aberto a partir de um terminal com o Claude
+  rodando, as sessões herdavam marcas de "sessão filha" (transcript desligado,
+  permissões herdadas). O app agora limpa essas marcas ao criar cada sessão.
+
 ## 0.2.0 — 26/07/2026
 
 Faxina antes de abrir o Modo Dev. Nada muda no jeito de usar; o que muda é uma

@@ -53,10 +53,29 @@ export interface PtyCreateOptions {
  * setado em `baseEnv`). Nunca mexe em mais nada do env (plan.md ponto 2 —
  * nunca sobrescrever PATH).
  */
+/**
+ * Marcadores que o Claude Code seta nos processos que ELE lança. Se o app foi
+ * aberto de dentro de uma sessão do Claude Code (dev server, terminal com
+ * claude rodando), herdá-los faz o CLI das nossas abas abrir como "sessão
+ * filha" — transcript saving off, permission mode herdado (achado do teste
+ * manual de 27/07). As sessões que o app cria são sempre sessões RAIZ.
+ * Lista explícita de propósito: nunca varrer `CLAUDE_*` inteiro (mataria
+ * config legítima do usuário, ex. CLAUDE_CONFIG_DIR do perfil).
+ */
+const INHERITED_CLAUDE_SESSION_MARKERS = [
+  'CLAUDECODE',
+  'CLAUDE_CODE_CHILD_SESSION',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_SSE_PORT',
+] as const;
+
 export function buildPtyEnv(baseEnv: NodeJS.ProcessEnv, claudeConfigDir: string | undefined): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(baseEnv)) {
     if (value !== undefined) env[key] = value;
+  }
+  for (const marker of INHERITED_CLAUDE_SESSION_MARKERS) {
+    delete env[marker];
   }
   if (claudeConfigDir) {
     env.CLAUDE_CONFIG_DIR = claudeConfigDir;

@@ -108,10 +108,10 @@ test('modo dev (StrictMode ativo): aba nova via launcher fica viva e digitável'
 
   const claudeBaseline = listPids('claude.exe');
 
-  // Painel do Launcher agora é colapsável (feedback E2E rodada 3) — abre
-  // pela seta do "＋ Nova sessão" → "Sessão Claude".
-  await window.getByRole('button', { name: 'Mais opções de ＋ Nova sessão' }).click();
-  await window.getByRole('menuitem', { name: 'Sessão Claude' }).click();
+  // FIX (teste manual 27/07) — o corpo do "＋ Nova sessão" abre o Launcher
+  // direto (App.tsx, `onClick={() => setLauncherOpen(true)}`); o antigo item
+  // de menu "Sessão Claude" foi removido do dropdown.
+  await window.getByRole('button', { name: '＋ Nova sessão', exact: true }).click();
 
   const launcher = window.locator('[data-testid="launcher"]');
   await expect(launcher).toBeVisible();

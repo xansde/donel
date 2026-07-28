@@ -1,0 +1,119 @@
+.armed {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  font-family: var(--font-ui);
+  animation: armed-pulse 1600ms ease-in-out infinite;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  font-size: var(--text-caption-size);
+  color: var(--accent);
+}
+
+.barLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.hint {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.enterKey {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  height: 17px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.dismiss {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--text-caption-size);
+  cursor: pointer;
+}
+
+.dismiss:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px 10px;
+  font-size: var(--text-caption-size);
+}
+
+.tone-muted {
+  color: var(--text-muted);
+}
+
+.tone-ok {
+  color: var(--zone-ok);
+}
+
+.tone-warn {
+  color: var(--state-waiting);
+}
+
+.tone-error {
+  color: var(--state-permission);
+}
+
+.tone-lock {
+  color: var(--state-error);
+}
+
+.tone-accent {
+  color: var(--accent);
+}
+
+.command {
+  padding: 8px 10px 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-size);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@keyframes armed-pulse {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--accent) 95%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .armed {
+    animation: none;
+  }
+}
